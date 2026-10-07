@@ -366,11 +366,22 @@ def guide_overlay(geo, tf, W, H):
     else:                                        # 규정선과 겹치지 않도록 가장 넓은 칸 가운데
         a, b = max(zip(marks, marks[1:]), key=lambda ab: ab[1] - ab[0])
         y_left = top - (a + b) / 2 * r
+    # 보호공간 치수선 (실선): 좌우 8r 은 문양·기관명 잉크에서, 상하 5r 은 문양 잉크 상단·하단에서
+    y_right = (ink[1] + Y0) / 2 + 0.6 * r        # 우측 줄높이 라벨과 겹치지 않게 하단 보호공간 띠에
+    x_dim = (X0 + ink[0]) / 2 + 1.6 * r
+    dims = [((X0, y_left - 1.2 * r), (ink[0], y_left - 1.2 * r)),
+            ((text[2], y_right - 1.2 * r), (X1, y_right - 1.2 * r)),
+            ((x_dim, ink[3]), (x_dim, Y1)),
+            ((x_dim, ink[1]), (x_dim, Y0))]
+    out.append(f'<g stroke="{c}" stroke-width="{sw * 2}">')
+    for (ax, ay), (bx, by) in [(tf(a), tf(b)) for a, b in dims]:
+        out.append(f'<line x1="{fmt(ax)}" y1="{fmt(ay)}" x2="{fmt(bx)}" y2="{fmt(by)}"/>')
+    out.append("</g>")
     lab = [
         ((cx, (top + Y1) / 2), "2R (R=10r)"),
         (((right + x_text) / 2, (top + Y1) / 2), "5.5r"),
         (((X0 + ink[0]) / 2, y_left), "8r"),
-        (((text[2] + X1) / 2 - 0.8 * r, cy - 2.5 * r), "8r"),
+        (((text[2] + X1) / 2, y_right), "8r"),
         (((X0 + ink[0]) / 2, (ink[3] + Y1) / 2), "5r"),
         (((X0 + ink[0]) / 2, (ink[1] + Y0) / 2), "5r"),
     ]
