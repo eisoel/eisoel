@@ -1,0 +1,6 @@
+# 원본 자료(서체, AI, 가이드 PDF)는 커밋하지 않음
+source/
+*.ttf
+*.otf
+*.ai
+__pycache__/
