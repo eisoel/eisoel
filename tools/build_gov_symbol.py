@@ -5,6 +5,7 @@
   1행     기관명 한 줄                                     (BS 3-1-02, BS 3-3-01)
   A       본부 병기형 2행: 본부명 5.5r / 소속기관명 7.5r    (BS 3-3-05 가로조합 A type)
   B       본부 병기형 2행: 본부명 7r / 소속기관명 7r        (BS 3-3-05 가로조합 B type)
+  2행     10자 이상 기관명 2행: 7r / 7r (70%)            (BS 3-1-04)  예: "산업재해보상보험|재심사위원회"
   국영B   국영문 혼용: 국문 8.5r / 영문 1행 (대문자 3r)      (BS 3-03, 3-3-03 Type B)
   국영A   국영문 혼용: 국문 8.5r / 영문 2행                  (BS 3-03, 3-3-03 Type A)
 
@@ -42,6 +43,7 @@
 
 import argparse
 import os
+from xml.sax.saxutils import escape
 
 from fontTools.misc.bezierTools import calcCubicBounds
 from fontTools.pens.basePen import BasePen
@@ -114,9 +116,11 @@ TYPES = {
     "1행": ((10.0, 5.0),),
     "A": ((5.5, 2.3), (7.5, 2.3 + 5.5 + 2.4)),
     "B": ((7.0, 1.7), (7.0, 1.7 + 7.0 + 2.6)),
+    "2행": ((7.0, 1.7), (7.0, 1.7 + 7.0 + 2.6)),   # 10자 이상 기관명 2행 (BS 3-1-04, 70%) — B type 과 같은 치수
 }
 TYPE_LABEL = {"1행": "국문 가로조합 1행", "A": "본부 병기형 국문 가로조합 A type (2행)",
               "B": "본부 병기형 국문 가로조합 B type (2행)",
+              "2행": "국문 가로조합 2행 (10자 이상)",
               "국영B": "국영문 혼용 가로조합 Type B (영문 1행)",
               "국영A": "국영문 혼용 가로조합 Type A (영문 2행)"}
 
@@ -350,7 +354,7 @@ def write_svg(path, title, geo, glyphs, guides=False):
         '<?xml version="1.0" encoding="UTF-8"?>',
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{fmt(W)}pt" height="{fmt(H)}pt" '
         f'viewBox="0 0 {fmt(W)} {fmt(H)}">',
-        f"<title>{title}</title>",
+        f"<title>{escape(title)}</title>",
         f"<desc>대한민국 정부상징 — {TYPE_LABEL[geo['kind']]}. "
         "캔버스는 보호공간(좌우 8r, 상하 5r)을 포함.</desc>",
         '<g id="emblem">',
@@ -548,6 +552,13 @@ def build(font, name, kind, parent, english=None):
         lines = english.split("|")
         glyphs = layout_ke(font, name, lines, kind)
         title = f"{name} {' '.join(lines)}"
+    elif kind == "2행":
+        lines = name.split("|")
+        n = len(name.replace("|", ""))
+        if len(lines) != 2 or n < 10:
+            raise SystemExit(f"{name}: 2행은 10자 이상 기관명을 '윗줄|아랫줄' 로 나눠 넣습니다 (BS 3-1-04).")
+        glyphs = layout_lines(font, lines, kind)
+        title = "".join(lines)
     else:
         if not parent:
             raise SystemExit(f"{kind} type 은 --parent(본부명)가 필요합니다.")
@@ -580,7 +591,7 @@ def main():
     pngs = []
     for name, english in entries:
         title, glyphs, geo = build(font, name, args.type, args.parent, english)
-        base = pattern.format(name=name)
+        base = pattern.format(name=name.replace("|", ""), parent=args.parent or "")
         svg = os.path.join(args.out, "svg", base + ".svg")
         W, _ = write_svg(svg, title, geo, glyphs)
         write_pdf(os.path.join(args.out, "pdf", base + ".pdf"), title, geo, glyphs)
@@ -595,7 +606,7 @@ def main():
     # 규정선 검증 이미지 (첫 번째 기관)
     name, english = entries[0]
     title, glyphs, geo = build(font, name, args.type, args.parent, english)
-    guide_svg = os.path.join(args.out, "구성규정_" + name + ".svg")
+    guide_svg = os.path.join(args.out, "구성규정_" + name.replace("|", "") + ".svg")
     W, _ = write_svg(guide_svg, title, geo, glyphs, guides=True)
     write_png(guide_svg, guide_svg[:-4] + ".png", W, args.px_per_pt)
     os.remove(guide_svg)
