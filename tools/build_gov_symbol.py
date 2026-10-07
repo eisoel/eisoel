@@ -124,8 +124,10 @@ TYPE_LABEL = {"1행": "국문 가로조합 1행", "A": "본부 병기형 국문 
 # '대한민국정부'와 영문 아웃라인을 정부상징체.ttf와 대조해 얻은 값. 단위 r, 깊이는 문양 상단에서 기준선까지.
 #   kor: 글자 높이 = 795 ~ -97 unit 구간 (8.5r),  eng: 대문자 높이 = 17 ~ 714 unit 구간 (3r)
 #   영문 기준선은 대문자(T·G·R·K)로 산출 — 원본 AI 의 소문자 어센더(h·l·b·f)는 TTF 보다 46 unit 낮아 제외
+#   영문 자간: 두 AI 모두 서체 기본 advance + kern 표에 균일한 트래킹 -8/1000 em (공백 포함 글자마다)
 #   (문양 우단 → 잉크 좌단 간격, ((역할, 높이, 기준선 깊이), ...))
 ENG_CAP = (17, 714)
+ENG_TRACKING = -8          # 1/1000 em
 KE_TYPES = {
     "국영B": (4.9986, (("kor", 8.5025, 10.3070), ("eng", 2.9967, 17.3500))),
     "국영A": (4.9987, (("kor", 8.5025, 10.3069), ("eng", 2.9928, 17.3461), ("eng", 2.9928, 22.6073))),
@@ -273,10 +275,15 @@ def layout_ke(font, korean, english, kind):
     if len(texts) != len(spec):
         raise SystemExit(f"{korean}: {kind} 는 영문 {len(spec) - 1}행이 필요합니다 (받은 값: {english}).")
     ink_left = m["cx"] + m["R"] + gap * r
+    upm = font.tt["head"].unitsPerEm
     glyphs = []
     for text, (role, size, depth) in zip(texts, spec):
-        band = BOX_TOP - BOX_BOTTOM if role == "kor" else ENG_CAP[1] - ENG_CAP[0]
-        glyphs += set_line(font, text, top - depth * r, size * r / band, ink_left=ink_left)
+        if role == "kor":
+            scale, track = size * r / (BOX_TOP - BOX_BOTTOM), None
+        else:
+            scale = size * r / (ENG_CAP[1] - ENG_CAP[0])
+            track = [ENG_TRACKING * upm / 1000] * (len(text) - 1)
+        glyphs += set_line(font, text, top - depth * r, scale, extra_kern=track, ink_left=ink_left)
     return glyphs
 
 
