@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""대한민국 정부상징 기관상징 생성기 — 국문 가로조합 1행 (좌: 정부상징 문양, 우: 기관명).
+"""대한민국 정부상징 기관상징 생성기 — 국문 가로조합 (좌: 정부상징 문양, 우: 기관명).
+
+조합 형식
+  1행     기관명 한 줄                                     (BS 3-1-02, BS 3-3-01)
+  A       본부 병기형 2행: 본부명 5.5r / 소속기관명 7.5r    (BS 3-3-05 가로조합 A type)
+  B       본부 병기형 2행: 본부명 7r / 소속기관명 7r        (BS 3-3-05 가로조합 B type)
 
 근거 자료
   * 정부상징 디자인 가이드 (2017 개정판)
@@ -9,17 +14,25 @@
       BS 3-1-02, BS 3-3-01  1차 소속기관 국문 가로조합
                문양 2R, 문양-기관명 간격 5.5r, 기관명 10r (상하 5r), 기관명 좌측정렬,
                문양 중심축 = 기관명 중심축
-      BS 3-1-03/04  4~9자는 기본 크기 (3자 이하 110%, 10자 이상 85% — 여기서는 해당 없음)
+      BS 3-1-03/04  1행은 4~9자가 기본 크기 (3자 이하 110%, 10자 이상 85% — 범위 밖)
+      BS 3-3-05  본부 병기형 가로조합 — 문양 상단부터
+               A type: 2.3r / 본부명 5.5r / 2.4r / 소속기관명 7.5r / 2.3r
+               B type: 1.7r / 본부명 7r / 2.6r / 소속기관명 7r / 1.7r
   * 대한민국정부_국문_좌우_1행.ai
       정부상징 문양 벡터(아래 EMBLEM)는 이 파일의 콘텐츠 스트림을 그대로 옮긴 값이다.
       기관명의 글자 크기·기준선·시작 위치도 같은 파일의 '대한민국정부' 아웃라인을
       정부상징체.ttf 글리프와 대조해 얻은 값을 쓴다 (FONT_SCALE, BASELINE_Y, TEXT_INK_LEFT).
   * 정부상징체.ttf — 기관명 글리프 아웃라인. 자간은 서체 기본값(추가 조정 없음, BS 서론 p.7).
 
+글자 높이 규정(10r, 7.5r ...)은 글리프 높이 기준 795 ~ -97 font unit 구간에 해당한다.
+'대한민국정부' AI 대조(10r = 892 unit)와 가이드 BS 3-3-05 도면의 치수선(오차 0.07pt 이내)으로 확인했다.
+
 좌표계는 원본 AI 문서의 PDF 좌표(pt, y 위쪽 증가)를 그대로 사용한다.
 
 사용법
   python3 tools/build_gov_symbol.py --font path/to/정부상징체.ttf --out logos
+  python3 tools/build_gov_symbol.py --font path/to/정부상징체.ttf --out logos/고용노동부 \\
+      --type A --parent 고용노동부 --filename "{name} 로고" 광주지방고용노동청 ...
 필요 패키지: fonttools, cairosvg (PNG), pillow (미리보기)
 """
 
@@ -85,9 +98,21 @@ f"""),
 ]
 
 # 원본 AI의 '대한민국정부' 아웃라인을 정부상징체.ttf와 대조해 얻은 값
-FONT_SCALE = 0.033844      # pt / font unit (가로·세로 동일, 34.656pt)
-BASELINE_Y = 125.4431      # 기준선 y (pt)
+FONT_SCALE = 0.033844      # pt / font unit (가로·세로 동일, 34.656pt) — 기관명 높이 10r
+BASELINE_Y = 125.4431      # 1행 기준선 y (pt)
 TEXT_INK_LEFT = 229.4574   # 첫 글자 잉크 좌단 x (pt) — 문양 우단에서 5.5r
+
+# 글자 높이 규정이 가리키는 글리프 구간 (font unit)
+BOX_TOP, BOX_BOTTOM = 795, -97
+
+# 조합 형식: 줄마다 (글자 높이 h, 문양 상단에서 글자 영역 상단까지 거리 t), 단위 r
+TYPES = {
+    "1행": ((10.0, 5.0),),
+    "A": ((5.5, 2.3), (7.5, 2.3 + 5.5 + 2.4)),
+    "B": ((7.0, 1.7), (7.0, 1.7 + 7.0 + 2.6)),
+}
+TYPE_LABEL = {"1행": "국문 가로조합 1행", "A": "본부 병기형 국문 가로조합 A type (2행)",
+              "B": "본부 병기형 국문 가로조합 B type (2행)"}
 
 # 상징색상 (BS 1-03)
 COLORS = {
@@ -178,16 +203,16 @@ class Font:
             raise SystemExit(f"정부상징체에 '{ch}' 글리프가 없습니다.")
         return self.cmap[ord(ch)]
 
-    def outline(self, gname, ox, oy):
-        pen = SegmentPen(self.gs, ox, oy, FONT_SCALE)
+    def outline(self, gname, ox, oy, scale=FONT_SCALE):
+        pen = SegmentPen(self.gs, ox, oy, scale)
         self.gs[gname].draw(pen)
         return pen.segs
 
 
-def layout(font, name, extra_kern=None):
-    """기관명 글리프 배치. 첫 글자 잉크 좌단을 TEXT_INK_LEFT 에 맞추고 서체 기본 자간으로 배열."""
-    gnames = [font.glyph(ch) for ch in name]
-    first = font.outline(gnames[0], 0, 0)
+def set_line(font, text, baseline, scale=FONT_SCALE, extra_kern=None):
+    """한 줄 배치. 첫 글자 잉크 좌단을 TEXT_INK_LEFT 에 맞추고 서체 기본 자간으로 배열."""
+    gnames = [font.glyph(ch) for ch in text]
+    first = font.outline(gnames[0], 0, 0, scale)
     x = TEXT_INK_LEFT - seg_bounds(first)[0]
     glyphs = []
     for i, g in enumerate(gnames):
@@ -195,8 +220,25 @@ def layout(font, name, extra_kern=None):
             adv = font.hmtx[gnames[i - 1]][0] + font.kern.get((gnames[i - 1], g), 0)
             if extra_kern:
                 adv += extra_kern[i - 1]
-            x += adv * FONT_SCALE
-        glyphs.append(font.outline(g, x, BASELINE_Y))
+            x += adv * scale
+        glyphs.append(font.outline(g, x, baseline, scale))
+    return glyphs
+
+
+def layout(font, name, extra_kern=None):
+    """1행 기관명 — 기준선은 원본 AI 값."""
+    return set_line(font, name, BASELINE_Y, extra_kern=extra_kern)
+
+
+def layout_lines(font, lines, kind):
+    """2행 본부 병기형 — 줄마다 글자 높이 h r, 문양 상단에서 t r 아래에 글자 영역을 둔다."""
+    m = emblem_metrics()
+    top, r = m["cy"] + m["R"], m["r"]
+    glyphs = []
+    for text, (h, t) in zip(lines, TYPES[kind]):
+        scale = FONT_SCALE * h / 10
+        baseline = top - (t + h) * r - BOX_BOTTOM * scale
+        glyphs += set_line(font, text, baseline, scale)
     return glyphs
 
 
@@ -204,18 +246,25 @@ def emblem():
     return [(color, parse_ops(tx, ty, ops)) for color, tx, ty, ops in EMBLEM]
 
 
-def geometry(glyphs):
-    """문양 기준값(R, r)과 보호공간을 포함한 캔버스 계산."""
+def emblem_metrics():
+    """문양 기준값: 중심, 반지름 R, r = R/10, 청·홍 잉크 영역."""
     shapes = emblem()
     white = seg_bounds(shapes[0][1])
     cx, cy = (white[0] + white[2]) / 2, (white[1] + white[3]) / 2
     ink = union([seg_bounds(s) for c, s in shapes if c != "white"])   # 청·홍 문양 잉크 영역
     R = ((cx - ink[0]) + (ink[3] - cy)) / 2                           # 좌단·상단 기준 반지름
-    r = R / 10
+    return dict(shapes=shapes, cx=cx, cy=cy, R=R, r=R / 10, ink=ink)
+
+
+def geometry(glyphs, kind="1행"):
+    """보호공간을 포함한 캔버스 계산."""
+    geo = emblem_metrics()
+    r, ink = geo["r"], geo["ink"]
     text = union([seg_bounds(g) for g in glyphs])
     canvas = (ink[0] - CLEAR_X * r, ink[1] - CLEAR_Y * r,
               text[2] + CLEAR_X * r, ink[3] + CLEAR_Y * r)
-    return dict(shapes=shapes, cx=cx, cy=cy, R=R, r=r, ink=ink, text=text, canvas=canvas)
+    geo.update(text=text, canvas=canvas, kind=kind)
+    return geo
 
 
 def fmt(v):
@@ -244,7 +293,7 @@ def pdf_path(segs, tf):
     return "\n".join(out) + "\nf"
 
 
-def write_svg(path, name, geo, glyphs, guides=False):
+def write_svg(path, title, geo, glyphs, guides=False):
     x0, y0, x1, y1 = geo["canvas"]
     W, H = x1 - x0, y1 - y0
 
@@ -255,8 +304,9 @@ def write_svg(path, name, geo, glyphs, guides=False):
         '<?xml version="1.0" encoding="UTF-8"?>',
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{fmt(W)}pt" height="{fmt(H)}pt" '
         f'viewBox="0 0 {fmt(W)} {fmt(H)}">',
-        f"<title>{name}</title>",
-        "<desc>대한민국 정부상징 — 국문 가로조합 1행. 캔버스는 보호공간(좌우 8r, 상하 5r)을 포함.</desc>",
+        f"<title>{title}</title>",
+        f"<desc>대한민국 정부상징 — {TYPE_LABEL[geo['kind']]}. "
+        "캔버스는 보호공간(좌우 8r, 상하 5r)을 포함.</desc>",
         '<g id="emblem">',
     ]
     for color, segs in geo["shapes"]:
@@ -275,7 +325,7 @@ def write_svg(path, name, geo, glyphs, guides=False):
 
 
 def guide_overlay(geo, tf, W, H):
-    """가이드 BS 3-3-01 형식의 규정선(검증용)."""
+    """가이드 BS 3-3-01 / 3-3-05 형식의 규정선(검증용)."""
     r, R, cx, cy, ink, text = geo["r"], geo["R"], geo["cx"], geo["cy"], geo["ink"], geo["text"]
     c = "#00ADEF"
     sw = 0.25
@@ -288,13 +338,19 @@ def guide_overlay(geo, tf, W, H):
 
     left, right = cx - R, cx + R
     top = cy + R
-    band_top, band_bot = cy + 5 * r, cy - 5 * r     # 기관명 10r 영역 (문양 중심축 기준)
     x_text = right + 5.5 * r
+    # 글자 영역 경계 (문양 상단에서 아래로, r 단위)
+    marks = [0.0]
+    for h, t in TYPES[geo["kind"]]:
+        marks += [t, t + h]
+    marks.append(20.0)
     X0, Y0, X1, Y1 = geo["canvas"]
     for x in (left, right, x_text):
         line((x, Y0), (x, Y1))
-    for y in (top, cy, band_top, band_bot, cy - R):
-        line((X0, y), (X1, y))
+    for m in marks:
+        line((X0, top - m * r), (X1, top - m * r))
+    if geo["kind"] == "1행":
+        line((X0, cy), (X1, cy))
     # 보호공간 경계
     (ax, ay), (bx, by) = tf((ink[0], ink[3])), tf((text[2], ink[1]))
     out.append(f'<rect x="{fmt(ax)}" y="{fmt(ay)}" width="{fmt(bx - ax)}" height="{fmt(by - ay)}"/>')
@@ -305,17 +361,24 @@ def guide_overlay(geo, tf, W, H):
     out.append("</g>")
     # 치수 라벨
     fs = 2.4 * r * 0.55
+    if geo["kind"] == "1행":
+        y_left = cy + 2.5 * r
+    else:                                        # 규정선과 겹치지 않도록 가장 넓은 칸 가운데
+        a, b = max(zip(marks, marks[1:]), key=lambda ab: ab[1] - ab[0])
+        y_left = top - (a + b) / 2 * r
     lab = [
         ((cx, (top + Y1) / 2), "2R (R=10r)"),
         (((right + x_text) / 2, (top + Y1) / 2), "5.5r"),
-        ((X1 - 1.6 * r, cy + 2.5 * r), "10r"),
-        ((X1 - 1.6 * r, (band_top + top) / 2), "5r"),
-        ((X1 - 1.6 * r, (band_bot + cy - R) / 2), "5r"),
-        (((X0 + ink[0]) / 2, cy + 2.5 * r), "8r"),
+        (((X0 + ink[0]) / 2, y_left), "8r"),
         (((text[2] + X1) / 2 - 0.8 * r, cy - 2.5 * r), "8r"),
         (((X0 + ink[0]) / 2, (ink[3] + Y1) / 2), "5r"),
         (((X0 + ink[0]) / 2, (ink[1] + Y0) / 2), "5r"),
     ]
+    for a, b in zip(marks, marks[1:]):
+        y = top - (a + b) / 2 * r
+        if geo["kind"] == "1행" and a == 5.0:
+            y = cy + 2.5 * r                     # 중심축 선과 겹치지 않게
+        lab.append(((X1 - 1.6 * r, y), f"{fmt(b - a)}r"))
     out.append(f'<g fill="{c}" font-family="sans-serif" font-size="{fmt(fs)}" text-anchor="middle">')
     for p, t in lab:
         x, y = tf(p)
@@ -328,7 +391,7 @@ def pdf_text_string(s):
     return "<FEFF" + s.encode("utf-16-be").hex().upper() + ">"
 
 
-def write_pdf(path, name, geo, glyphs):
+def write_pdf(path, title, geo, glyphs):
     """인쇄용 PDF: 정부청색·정부적색은 원본 AI와 같은 별색(Separation), 기관명은 K80."""
     x0, y0, x1, y1 = geo["canvas"]
     W, H = x1 - x0, y1 - y0
@@ -363,8 +426,8 @@ def write_pdf(path, name, geo, glyphs):
         sep("GOK_Blue", COLORS["blue"][1]),
         sep("GOK_Red", COLORS["red"][1]),
         b"<< /Length %d >>\nstream\n" % len(content) + content + b"endstream",
-        (f"<< /Title {pdf_text_string(name)} "
-         f"/Subject {pdf_text_string('대한민국 정부상징 국문 가로조합 1행')} >>").encode(),
+        (f"<< /Title {pdf_text_string(title)} "
+         f"/Subject {pdf_text_string('대한민국 정부상징 ' + TYPE_LABEL[geo['kind']])} >>").encode(),
     ]
     data = bytearray(b"%PDF-1.5\n%\xe2\xe3\xcf\xd3\n")
     offsets = []
@@ -410,43 +473,58 @@ def write_preview(pngs, path, gap=24):
     sheet.save(path)
 
 
+def build(font, name, kind, parent):
+    """(제목, 글리프, 기하) — kind 가 1행이면 기관명만, A/B 이면 본부명/기관명 2행."""
+    if kind == "1행":
+        n = len(name)
+        if n <= 3 or n >= 10:
+            raise SystemExit(f"{name}: {n}자 — 3자 이하(110%)/10자 이상(85%) 규정은 이 스크립트 범위 밖입니다.")
+        glyphs = layout(font, name)
+        title = name
+    else:
+        if not parent:
+            raise SystemExit(f"{kind} type 은 --parent(본부명)가 필요합니다.")
+        glyphs = layout_lines(font, [parent, name], kind)
+        title = f"{parent} {name}"
+    return title, glyphs, geometry(glyphs, kind)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--font", required=True, help="정부상징체.ttf 경로")
     ap.add_argument("--out", default="logos", help="출력 폴더")
+    ap.add_argument("--type", default="1행", choices=sorted(TYPES), help="조합 형식 (기본: 1행)")
+    ap.add_argument("--parent", help="본부명 (A/B type 1행째, 예: 고용노동부)")
+    ap.add_argument("--filename", help="파일명 형식 (기본: 1행 '{name}_국문_좌우_1행', 2행 '{name}_국문_좌우_2행')")
     ap.add_argument("--px-per-pt", type=float, default=8.0, help="PNG 해상도 (pt 당 픽셀)")
     ap.add_argument("names", nargs="*", default=NAMES, help="기관명 (기본: 지방국세청 7곳)")
     args = ap.parse_args()
 
     font = Font(args.font)
+    pattern = args.filename or ("{name}_국문_좌우_1행" if args.type == "1행" else "{name}_국문_좌우_2행")
     for d in ("svg", "pdf", "png"):
         os.makedirs(os.path.join(args.out, d), exist_ok=True)
 
     pngs = []
     for name in args.names:
-        n = len(name)
-        if n <= 3 or n >= 10:
-            raise SystemExit(f"{name}: {n}자 — 3자 이하(110%)/10자 이상(85%) 규정은 이 스크립트 범위 밖입니다.")
-        glyphs = layout(font, name)
-        geo = geometry(glyphs)
-        base = f"{name}_국문_좌우_1행"
+        title, glyphs, geo = build(font, name, args.type, args.parent)
+        base = pattern.format(name=name)
         svg = os.path.join(args.out, "svg", base + ".svg")
-        W, _ = write_svg(svg, name, geo, glyphs)
-        write_pdf(os.path.join(args.out, "pdf", base + ".pdf"), name, geo, glyphs)
+        W, _ = write_svg(svg, title, geo, glyphs)
+        write_pdf(os.path.join(args.out, "pdf", base + ".pdf"), title, geo, glyphs)
         png = os.path.join(args.out, "png", base + ".png")
         write_png(svg, png, W, args.px_per_pt)
         pngs.append(png)
         r = geo["r"]
         t = geo["text"]
-        print(f"{name}: 캔버스 {W / r:.2f}r x {(geo['canvas'][3] - geo['canvas'][1]) / r:.2f}r, "
+        print(f"{title}: 캔버스 {W / r:.2f}r x {(geo['canvas'][3] - geo['canvas'][1]) / r:.2f}r, "
               f"간격 {(t[0] - geo['cx'] - geo['R']) / r:.2f}r, 기관명 폭 {(t[2] - t[0]) / r:.2f}r")
 
     # 규정선 검증 이미지 (첫 번째 기관)
     name = args.names[0]
-    glyphs = layout(font, name)
-    geo = geometry(glyphs)
+    title, glyphs, geo = build(font, name, args.type, args.parent)
     guide_svg = os.path.join(args.out, "구성규정_" + name + ".svg")
-    W, _ = write_svg(guide_svg, name, geo, glyphs, guides=True)
+    W, _ = write_svg(guide_svg, title, geo, glyphs, guides=True)
     write_png(guide_svg, guide_svg[:-4] + ".png", W, args.px_per_pt)
     os.remove(guide_svg)
     write_preview(pngs, os.path.join(args.out, "미리보기.png"))
