@@ -95,3 +95,8 @@ python3 tools/build_gov_symbol.py --font path/to/정부상징체.ttf --out logos
 `--type B`는 본부명·소속기관명을 모두 7r로 쓰는 B type입니다.
 `--type 2행`은 10자 이상 기관명을 두 줄로 나눕니다 (예: `"산업재해보상보험|재심사위원회"`, 파일명 `--filename "{name} 로고"`).
 `정부상징체.ttf`, 원본 `.ai`, 가이드 PDF는 공개 저장소에 재배포하지 않기 위해 포함하지 않았습니다.
+
+## 2023 AFC 아시안컵 국가 아이콘
+
+`아시안컵/svg/` — 카타르·우즈베키스탄 아이콘 SVG를 기준으로 국기만 각국 국기 SVG로 바꿔 넣은 22개국 아이콘입니다.
+만든 방법과 나라별 참고는 [`아시안컵/README.md`](아시안컵/README.md), 생성 스크립트는 `tools/build_afc_icons.py`입니다.
