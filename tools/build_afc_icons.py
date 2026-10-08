@@ -268,32 +268,59 @@ def malaysia_emblem(flag, c):
     move_group(flag, els, (1320, 480, 5320, 3360), (65, 68, 126, 116), Place(flag, c))
 
 
-def australia_stars(flag, c):
-    # PNG 는 별을 약 0.43배로 줄여 마름모 안에 모아 그렸다 → 별 위치·크기를 PNG 에 맞춘다.
+def australia(flag, c):
+    # PNG 는 유니언 잭(칸톤)을 약 1.44:1 상자에 그렸고, 별은 약 0.43배로 줄여 마름모 안에 모았다.
+    # → 칸톤: 국기 파일의 구성(대각선 흰 0.6·붉은 0.4 반전 클립, 십자 흰 840·붉은 504)과
+    #   선 굵기 비율은 그대로 두고, 상자 크기·위치만 PNG (4.25, 35.75) 125×86.75px 에 맞춘다.
+    #   선 굵기는 상자 높이 기준의 0.738배(가로 125px 유니언 잭과 같은 굵기).
+    # → 별: 위치·크기를 PNG 에 맞춘다(별 모양은 국기 파일의 use 그대로).
     P = Place(flag, c)
-    g = [e for e in flag.root if local_tag(e) == 'g'][0]
+    X0, Y0 = P.pt(4.25, 35.75)
+    X1, Y1 = P.pt(4.25 + 125, 35.75 + 86.75)
+    sx, sy = (X1 - X0) / 6, (Y1 - Y0) / 3          # 국기 파일의 6×3 유니언 잭 단위
+    k = 0.738 * (Y1 - Y0) / 2520                    # 국기 파일 단위 선 굵기 배율
+
+    def pt(x, y):
+        return '%s %s' % (fmt(X0 + x * sx), fmt(Y0 + y * sy))
+    root = flag.root
+    defs = [e for e in root if local_tag(e) == 'defs'][0]
+    clips = {cp.get('id'): cp[0] for cp in defs if local_tag(cp) == 'clipPath'}
+    clips['a'].set('d', 'M%sH%sV%sH%sz' % (pt(0, 0), fmt(X1), fmt(Y1), fmt(X0)))
+    clips['b'].set('d', 'M%sL%sL%sL%szM%sL%sL%sL%sz' % (pt(0, 0), pt(0, 1.5), pt(6, 1.5), pt(6, 3),
+                                                      pt(6, 0), pt(3, 0), pt(3, 3), pt(0, 3)))
+    diag = 'M%sL%sM%sL%s' % (pt(0, 0), pt(6, 3), pt(6, 0), pt(0, 3))
+    cross = 'M%sV%sM%sH%s' % (pt(3, 0), fmt(Y1), pt(0, 1.5), fmt(X1))
+    for e in [e for e in root if local_tag(e) == 'path' and e.get('stroke')]:
+        if e.get('transform') == 'scale(840)':            # 대각선 (6×3 단위, 굵기 0.6 / 0.4)
+            e.attrib.pop('transform')
+            e.set('stroke-width', fmt(float(e.get('stroke-width')) * 840 * k))
+            e.set('d', diag)
+        else:                                             # 십자 (굵기 840 / 504)
+            e.set('stroke-width', fmt(float(e.get('stroke-width')) * k))
+            e.set('d', cross)
+    stars = [e for e in root if local_tag(e) == 'g' and e.get('fill') == '#fff'][0]
     # 국기 파일 순서: 연방의 별(2.1배), Alpha, Beta, Gamma, Delta, Epsilon
     targets = [(102.9, 156.7, 2.1), (170.7, 155.2, 1), (148.3, 120.0, 1),
                (170.8, 96.0, 1), (190.1, 114.2, 1), (179.4, 129.1, 1)]
-    for u, (px, py, base) in zip(list(g), targets):
+    for u, (px, py, base) in zip(list(stars), targets):
         X, Y = P.pt(px, py)
-        for k in ('x', 'y', 'transform'):
-            u.attrib.pop(k, None)
+        for a in ('x', 'y', 'transform'):
+            u.attrib.pop(a, None)
         s = base * 0.43
         u.set('transform', 'matrix(%s 0 0 %s %s %s)' % (fmts(s), fmts(s), fmt(X), fmt(Y)))
 
 
 # h : PNG 상 국기 높이(px)    cx, cy : PNG 상 국기 사각형 중심(px, 기본 = 마름모 중심)
 # bg: 국기가 마름모를 다 덮지 못할 때 깔 바탕색(국기 가장자리 색)
-# rect: 국기 사각형(국기 좌표, 기본 = viewBox)   post: 국기 안 요소 보정
+# rect: 국기 사각형(국기 좌표, 기본 = viewBox)   post: 국기 안 요소 보정   file: 국기 파일명(기본 `<국호> 국기.svg`)
 CONFIG = {
     '대한민국':     dict(h=120, cy=120.25, bg='#fff'),
     '일본':        dict(h=155.25, cy=120.25, bg='#fff'),
     '중국':        dict(h=127.5, cx=139.1, cy=121.5, bg='#ee1c25'),
     '타지키스탄':   dict(h=181.25, cy=120.5, post=tajik_cleanup),
     '레바논':      dict(h=151.25, cy=120.5, bg='#d31624'),
-    '호주':        dict(h=180, cx=130, cy=120.5, post=australia_stars),
-    '시리아':      dict(h=180, cy=120.5),
+    '호주':        dict(h=180, cx=130, cy=120.5, post=australia),
+    '시리아':      dict(h=179.75, cy=120.5, file='시리아 국기(1980-2024).svg'),
     '인도':        dict(h=180, cy=120.5),
     '이란':        dict(h=187.5, cx=119.86, cy=120, rect=(1, 1, 1134, 648)),
     '아랍에미리트': dict(h=179.25, cx=180.2, cy=120.25),
@@ -316,7 +343,7 @@ FILENAME = '2023 AFC 아시안컵 {name} 아이콘.svg'
 
 def build(name, flags_dir, out_dir):
     c = CONFIG[name]
-    flag = Flag(os.path.join(flags_dir, '%s 국기.svg' % name), c.get('rect'))
+    flag = Flag(os.path.join(flags_dir, c.get('file', '%s 국기.svg' % name)), c.get('rect'))
     if c.get('post'):
         c['post'](flag, c)
     cx = CX + (c.get('cx', PCX) - PCX) / KY
