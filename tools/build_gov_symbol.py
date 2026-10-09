@@ -29,7 +29,8 @@
       정부상징체.ttf 글리프와 대조해 얻은 값을 쓴다 (FONT_SCALE, BASELINE_Y, TEXT_INK_LEFT).
   * 정부상징체.ttf — 기관명 글리프 아웃라인. 자간은 서체 기본값(추가 조정 없음, BS 서론 p.7).
       서체에 없는 가운뎃점(·)은 서체의 쌍점 점을 숫자 높이 가운데에 놓아 만든다 (Font._middle_dot,
-      가이드 AS 5-06 '국립 5·18 민주묘지' 숫자표기 예시와 같은 방식).
+      가이드 AS 5-06 '국립 5·18 민주묘지' 숫자표기 예시와 같은 방식). 숫자 사이(4·19)에서는 점 양옆의
+      흰 여백이 시각적으로 같도록 뒤 숫자를 당긴다 (Font.dot_kern).
 
 글자 높이 규정(10r, 7.5r ...)은 글리프 높이 기준 795 ~ -97 font unit 구간에 해당한다.
 '대한민국정부' AI 대조(10r = 892 unit)와 가이드 BS 3-3-05 도면의 치수선(오차 0.07pt 이내)으로 확인했다.
@@ -223,6 +224,7 @@ def union(boxes):
 
 
 MIDDLE_DOT = "periodcentered"
+DIGITS = "0123456789"
 MIDDLE_DOT_CHARS = "\u00b7\u2027\u30fb\u318d"   # ·  ‧  ・  ㆍ(한글 자판의 가운뎃점 대용)
 
 
@@ -234,7 +236,7 @@ class Font:
         self.hmtx = self.tt["hmtx"]
         kern = self.tt["kern"].kernTables[0].kernTable if "kern" in self.tt else {}
         self.kern = kern
-        self.synth = {}
+        self.synth, self._dot_kern = {}, {}
         if 0xB7 not in self.cmap and 0x3A in self.cmap:
             self.synth[MIDDLE_DOT] = self._middle_dot(self.cmap[0x3A])
 
@@ -272,6 +274,57 @@ class Font:
         """(advance, lsb) font unit"""
         return self.synth[gname][0] if gname in self.synth else self.hmtx[gname]
 
+    def profile(self, gname, ys):
+        """높이 ys 마다 글리프 잉크의 (좌단, 우단) x (font unit). 잉크가 없는 높이는 None."""
+        edges, cur, start = [], None, None
+        for op, pts in self.outline(gname, 0, 0, 1.0):
+            if op == "m":
+                cur = start = pts[0]
+            elif op == "l":
+                edges.append((cur, pts[0]))
+                cur = pts[0]
+            elif op == "c":
+                p0 = cur
+                for i in range(1, 33):
+                    t = i / 32
+                    q = tuple((1 - t) ** 3 * a + 3 * (1 - t) ** 2 * t * b + 3 * (1 - t) * t ** 2 * c + t ** 3 * d
+                              for a, b, c, d in zip(p0, *pts))
+                    edges.append((cur, q))
+                    cur = q
+            elif op == "h":
+                if cur != start:
+                    edges.append((cur, start))
+                cur = start
+        out = []
+        for y in ys:
+            xs = [a[0] + (y - a[1]) * (b[0] - a[0]) / (b[1] - a[1]) for a, b in edges if (a[1] <= y) != (b[1] <= y)]
+            out.append((min(xs), max(xs)) if xs else None)
+        return out
+
+    def dot_kern(self, left, right):
+        """숫자 사이 가운뎃점(예: 4·19) — 뒤 숫자를 당기는 kern 값 (font unit).
+        서체 기본 간격으로는 고정폭 숫자 '1' 의 넓은 왼쪽 여백 때문에 점이 앞 숫자 쪽으로 치우쳐 보이므로,
+        숫자 높이(17~714 unit) 전체에서 점과 이웃 숫자 사이 흰 여백의 평균 수평 거리(최대 점의 폭까지)를
+        양쪽이 같아지게 뒤 숫자를 당긴다(벌리지는 않는다). 앞 숫자와 점의 간격은 서체 기본값 그대로다."""
+        if (left, right) not in self._dot_kern:
+            ys = [y + 0.5 for y in range(*ENG_CAP)]
+            adv_dot = self.metrics(MIDDLE_DOT)[0]
+            dot = seg_bounds(self.outline(MIDDLE_DOT, 0, 0, 1.0))
+            adv_l = self.metrics(left)[0]
+            gap_l = [min(adv_dot, adv_l + dot[0] - p[1]) if p else adv_dot for p in self.profile(left, ys)]
+            base_r = [adv_dot - dot[2] + p[0] if p else None for p in self.profile(right, ys)]
+            target = sum(gap_l) / len(gap_l)
+
+            def mean_r(k):
+                return sum(adv_dot if b is None else min(adv_dot, b + k) for b in base_r) / len(base_r)
+
+            lo, hi = -adv_dot, adv_dot
+            for _ in range(40):
+                mid = (lo + hi) / 2
+                lo, hi = (mid, hi) if mean_r(mid) < target else (lo, mid)
+            self._dot_kern[(left, right)] = min(0, round((lo + hi) / 2))   # 당기기만 한다
+        return self._dot_kern[(left, right)]
+
     def outline(self, gname, ox, oy, scale=FONT_SCALE):
         pen = SegmentPen(self.gs, ox, oy, scale)
         if gname in self.synth:
@@ -291,6 +344,8 @@ def set_line(font, text, baseline, scale=FONT_SCALE, extra_kern=None, ink_left=T
     for i, g in enumerate(gnames):
         if i:
             adv = font.metrics(gnames[i - 1])[0] + font.kern.get((gnames[i - 1], g), 0)
+            if gnames[i - 1] == MIDDLE_DOT and i >= 2 and text[i - 2] in DIGITS and text[i] in DIGITS:
+                adv += font.dot_kern(gnames[i - 2], g)   # 숫자 사이 가운뎃점은 시각적 가운데로
             if extra_kern:
                 adv += extra_kern[i - 1]
             x += adv * scale
