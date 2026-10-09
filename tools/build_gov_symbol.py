@@ -223,6 +223,7 @@ def union(boxes):
 
 
 MIDDLE_DOT = "periodcentered"
+MIDDLE_DOT_CHARS = "\u00b7\u2027\u30fb\u318d"   # ·  ‧  ・  ㆍ(한글 자판의 가운뎃점 대용)
 
 
 class Font:
@@ -261,7 +262,7 @@ class Font:
         return self.hmtx[colon], lower, dy
 
     def glyph(self, ch):
-        if ch == "\u00b7" and MIDDLE_DOT in self.synth:
+        if ch in MIDDLE_DOT_CHARS and MIDDLE_DOT in self.synth:
             return MIDDLE_DOT
         if ord(ch) not in self.cmap:
             raise SystemExit(f"정부상징체에 '{ch}' 글리프가 없습니다.")
