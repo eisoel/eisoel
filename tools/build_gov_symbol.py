@@ -28,6 +28,8 @@
       기관명의 글자 크기·기준선·시작 위치도 같은 파일의 '대한민국정부' 아웃라인을
       정부상징체.ttf 글리프와 대조해 얻은 값을 쓴다 (FONT_SCALE, BASELINE_Y, TEXT_INK_LEFT).
   * 정부상징체.ttf — 기관명 글리프 아웃라인. 자간은 서체 기본값(추가 조정 없음, BS 서론 p.7).
+      서체에 없는 가운뎃점(·)은 서체의 쌍점 점을 숫자 높이 가운데에 놓아 만든다 (Font._middle_dot,
+      가이드 AS 5-06 '국립 5·18 민주묘지' 숫자표기 예시와 같은 방식).
 
 글자 높이 규정(10r, 7.5r ...)은 글리프 높이 기준 795 ~ -97 font unit 구간에 해당한다.
 '대한민국정부' AI 대조(10r = 892 unit)와 가이드 BS 3-3-05 도면의 치수선(오차 0.07pt 이내)으로 확인했다.
@@ -49,6 +51,9 @@ from xml.sax.saxutils import escape
 
 from fontTools.misc.bezierTools import calcCubicBounds
 from fontTools.pens.basePen import BasePen
+from fontTools.pens.boundsPen import BoundsPen
+from fontTools.pens.recordingPen import RecordingPen, replayRecording
+from fontTools.pens.transformPen import TransformPen
 from fontTools.ttLib import TTFont
 
 NAMES = [
@@ -217,6 +222,9 @@ def union(boxes):
             max(b[2] for b in boxes), max(b[3] for b in boxes))
 
 
+MIDDLE_DOT = "periodcentered"
+
+
 class Font:
     def __init__(self, path):
         self.tt = TTFont(path)
@@ -225,15 +233,51 @@ class Font:
         self.hmtx = self.tt["hmtx"]
         kern = self.tt["kern"].kernTables[0].kernTable if "kern" in self.tt else {}
         self.kern = kern
+        self.synth = {}
+        if 0xB7 not in self.cmap and 0x3A in self.cmap:
+            self.synth[MIDDLE_DOT] = self._middle_dot(self.cmap[0x3A])
+
+    def _middle_dot(self, colon):
+        """가운뎃점(·) — 정부상징체에 없어 서체의 쌍점(:) 아래 점을 두 점의 가운데 높이로 올려 쓴다.
+        폭·좌우 여백은 쌍점과 같다. 가이드 AS 5-06 '국립 5·18 민주묘지'(숫자표기 예시)도 서체의
+        마침표 점을 숫자 사이 가운데에 놓았다."""
+        rec = RecordingPen()
+        self.gs[colon].draw(rec)
+        contours, cur = [], []
+        for op, args in rec.value:
+            cur.append((op, args))
+            if op in ("closePath", "endPath"):
+                contours.append(cur)
+                cur = []
+
+        def bounds(c):
+            bp = BoundsPen(self.gs)
+            replayRecording(c, bp)
+            return bp.bounds
+
+        lower, upper = sorted(contours, key=lambda c: bounds(c)[1])
+        (_, l0, _, l1), (_, u0, _, u1) = bounds(lower), bounds(upper)
+        dy = (l0 + l1 + u0 + u1) / 4 - (l0 + l1) / 2
+        return self.hmtx[colon], lower, dy
 
     def glyph(self, ch):
+        if ch == "\u00b7" and MIDDLE_DOT in self.synth:
+            return MIDDLE_DOT
         if ord(ch) not in self.cmap:
             raise SystemExit(f"정부상징체에 '{ch}' 글리프가 없습니다.")
         return self.cmap[ord(ch)]
 
+    def metrics(self, gname):
+        """(advance, lsb) font unit"""
+        return self.synth[gname][0] if gname in self.synth else self.hmtx[gname]
+
     def outline(self, gname, ox, oy, scale=FONT_SCALE):
         pen = SegmentPen(self.gs, ox, oy, scale)
-        self.gs[gname].draw(pen)
+        if gname in self.synth:
+            _, contour, dy = self.synth[gname]
+            replayRecording(contour, TransformPen(pen, (1, 0, 0, 1, 0, dy)))
+        else:
+            self.gs[gname].draw(pen)
         return pen.segs
 
 
@@ -245,7 +289,7 @@ def set_line(font, text, baseline, scale=FONT_SCALE, extra_kern=None, ink_left=T
     glyphs = []
     for i, g in enumerate(gnames):
         if i:
-            adv = font.hmtx[gnames[i - 1]][0] + font.kern.get((gnames[i - 1], g), 0)
+            adv = font.metrics(gnames[i - 1])[0] + font.kern.get((gnames[i - 1], g), 0)
             if extra_kern:
                 adv += extra_kern[i - 1]
             x += adv * scale
@@ -290,7 +334,7 @@ def layout_ke(font, korean, english, kind):
         else:
             scale = size * r / (ENG_CAP[1] - ENG_CAP[0])
             track = [ENG_TRACKING * upm / 1000] * (len(text) - 1)
-            lsb = font.hmtx[font.glyph(text[0])][1] * scale
+            lsb = font.metrics(font.glyph(text[0]))[1] * scale
             if eng_origin is None:              # 영문 첫 줄: 잉크 좌단을 국문과 같은 5r 선에
                 left, eng_origin = ink_left, ink_left - lsb
             else:                               # 영문 둘째 줄: 첫 줄과 글자 원점 정렬 (원본 2행 AI 와 같음)
@@ -585,7 +629,8 @@ def main():
                                        "국영문 '{name}_국영혼합_좌우_1행|2행')")
     ap.add_argument("--px-per-pt", type=float, default=8.0, help="PNG 해상도 (pt 당 픽셀)")
     ap.add_argument("names", nargs="*", default=NAMES,
-                    help="기관명 (기본: 지방국세청 7곳). 국영문은 '국문=English' (영문 2행은 '|' 로 구분)")
+                    help="기관명 (기본: 지방국세청 7곳). 국영문은 '국문=English' (영문 2행은 '|' 로 구분). "
+                         "파일명의 {name} 을 따로 줄 때는 끝에 '::이름' (예: '국립4·19민주묘지=...::국립4.19민주묘지')")
     args = ap.parse_args()
 
     font = Font(args.font)
@@ -595,11 +640,15 @@ def main():
     for d in ("svg", "pdf", "png"):
         os.makedirs(os.path.join(args.out, d), exist_ok=True)
 
-    entries = [n.split("=", 1) if "=" in n else (n, None) for n in args.names]
+    entries = []
+    for n in args.names:                         # '국문[=English][::파일명용 이름]'
+        n, _, key = n.partition("::")
+        name, _, english = n.partition("=")
+        entries.append((name, english or None, key or name.replace("|", "")))
     pngs = []
-    for name, english in entries:
+    for name, english, key in entries:
         title, glyphs, geo = build(font, name, args.type, args.parent, english)
-        base = pattern.format(name=name.replace("|", ""), parent=args.parent or "")
+        base = pattern.format(name=key, parent=args.parent or "")
         svg = os.path.join(args.out, "svg", base + ".svg")
         W, _ = write_svg(svg, title, geo, glyphs)
         write_pdf(os.path.join(args.out, "pdf", base + ".pdf"), title, geo, glyphs)
@@ -612,9 +661,9 @@ def main():
               f"간격 {(t[0] - geo['cx'] - geo['R']) / r:.2f}r, 기관명 폭 {(t[2] - t[0]) / r:.2f}r")
 
     # 규정선 검증 이미지 (첫 번째 기관)
-    name, english = entries[0]
+    name, english, key = entries[0]
     title, glyphs, geo = build(font, name, args.type, args.parent, english)
-    guide_svg = os.path.join(args.out, "구성규정_" + name.replace("|", "") + ".svg")
+    guide_svg = os.path.join(args.out, "구성규정_" + key + ".svg")
     W, _ = write_svg(guide_svg, title, geo, glyphs, guides=True)
     write_png(guide_svg, guide_svg[:-4] + ".png", W, args.px_per_pt)
     os.remove(guide_svg)
