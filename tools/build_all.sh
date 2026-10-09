@@ -2,9 +2,14 @@
 # 저장소의 모든 기관상징을 다시 만든다.
 #   tools/build_all.sh path/to/정부상징체.ttf [출력 폴더, 기본 logos]
 set -euo pipefail
-FONT=${1:?"사용법: $0 path/to/정부상징체.ttf [출력 폴더]"}
-OUT=${2:-logos}
+FONT=$(realpath "${1:?"사용법: $0 path/to/정부상징체.ttf [출력 폴더]"}")
+OUT=$(realpath -m "${2:-$(dirname "$0")/../logos}")
 cd "$(dirname "$0")/.."
+# 이전 결과물(svg/pdf/png, 구성규정·미리보기 이미지)을 지우고 다시 만든다 — 이름이 바뀐 기관의 파일이 남지 않게
+for d in "$OUT" "$OUT/고용노동부" "$OUT/관세청" "$OUT/기관별"; do
+    rm -rf "$d/svg" "$d/pdf" "$d/png"
+    rm -f "$d"/구성규정_*.png "$d/미리보기.png"
+done
 B=(python3 tools/build_gov_symbol.py --font "$FONT")
 O=$OUT/기관별
 
