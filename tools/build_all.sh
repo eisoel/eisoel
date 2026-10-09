@@ -41,7 +41,8 @@ O=$OUT/기관별
 "${B[@]}" --out "$O" --type A --parent 고용노동부 --filename "{parent}{name} 로고" 고객상담센터
 "${B[@]}" --out "$O" --type A --parent 식품의약품안전처 --filename "{name} 로고" 식품의약품안전평가원
 "${B[@]}" --out "$O" --type A --parent 행정안전부 --filename "{name} 로고" 주민등록번호변경위원회 대통령기록관
-"${B[@]}" --out "$O" --type A --parent 해양수산부 --filename "{name} 로고" 국립수산물품질관리원
+"${B[@]}" --out "$O" --type A --parent 해양수산부 --filename "{name} 로고" 국립수산물품질관리원 \
+    중앙해양안전심판원 울산지방해양수산청 부산지방해양수산청 남해어업관리단
 "${B[@]}" --out "$O" --type A --parent 산림청 --filename "{name} 로고" \
     중부지방산림청 서부지방산림청 남부지방산림청 동부지방산림청 북부지방산림청 국립산림품종관리센터 산림교육원
 "${B[@]}" --out "$O" --type A --parent 국가보훈부 --filename "{name} 로고" 보훈심사위원회
