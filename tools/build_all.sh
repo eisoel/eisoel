@@ -43,6 +43,9 @@ O=$OUT/기관별
 "${B[@]}" --out "$O" --type A --parent 행정안전부 --filename "{name} 로고" 주민등록번호변경위원회 대통령기록관
 "${B[@]}" --out "$O" --type A --parent 해양수산부 --filename "{name} 로고" 국립수산물품질관리원 \
     중앙해양안전심판원 울산지방해양수산청 부산지방해양수산청 남해어업관리단
+# 가이드에 없는 요청: 두 줄 사이 구분선
+"${B[@]}" --out "$O" --type A --parent 해양수산부 --divider --filename "{name} 로고(구분선)" \
+    부산지방해양수산청 중앙해양안전심판원
 "${B[@]}" --out "$O" --type A --parent 산림청 --filename "{name} 로고" \
     중부지방산림청 서부지방산림청 남부지방산림청 동부지방산림청 북부지방산림청 국립산림품종관리센터 산림교육원
 "${B[@]}" --out "$O" --type A --parent 국가보훈부 --filename "{name} 로고" 보훈심사위원회

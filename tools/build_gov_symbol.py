@@ -156,6 +156,8 @@ COLORS = {
     "gray": ("#575757", (0, 0, 0, 0.8), None),             # 정부회색 K80 (기관명)
 }
 
+DIVIDER = 0.25   # 두 줄 사이 구분선 두께 (r) — 가이드에 없는 요청용 (--divider)
+
 CLEAR_X = 8   # 보호공간 좌우 (r)
 CLEAR_Y = 5   # 보호공간 상하 (r)
 
@@ -581,7 +583,7 @@ def write_preview(pngs, path, gap=24):
     sheet.save(path)
 
 
-def build(font, name, kind, parent, english=None, justify=False):
+def build(font, name, kind, parent, english=None, justify=False, divider=False):
     """(제목, 글리프, 기하) — 1행: 기관명만, A/B: 본부명/기관명 2행, 국영B/국영A: 국문 + 영문."""
     name = "".join("\u00b7" if ch in MIDDLE_DOT_CHARS else ch for ch in name)   # 제목도 같은 가운뎃점으로
     if kind == "1행":
@@ -608,10 +610,25 @@ def build(font, name, kind, parent, english=None, justify=False):
             raise SystemExit(f"{kind} type 은 --parent(본부명)가 필요합니다.")
         glyphs = layout_lines(font, [parent, name], kind)
         title = f"{parent} {name}"
+    if divider:
+        glyphs = glyphs + [divider_rule(glyphs, kind)]
     geo = geometry(glyphs, kind)
     if justify:
         geo["note"] = " 국문 양끝을 영문 폭에 맞춤(요청에 따른 가이드 예외)."
+    if divider:
+        geo["note"] = " 두 줄 사이에 정부회색 구분선(요청에 따른 가이드 외 요소)."
     return title, glyphs, geo
+
+
+def divider_rule(glyphs, kind):
+    """두 줄 사이 가로 구분선 — 글자 영역 잉크 좌단~우단(긴 줄) 길이, 두 줄 글자 영역의 가운데, 두께 DIVIDER r."""
+    m = emblem_metrics()
+    top, r = m["cy"] + m["R"], m["r"]
+    (h1, t1), (_, t2) = TYPES[kind]
+    yc = top - ((t1 + h1) + t2) / 2 * r
+    x0, _, x1, _ = union([seg_bounds(g) for g in glyphs])
+    y0, y1 = yc - DIVIDER * r / 2, yc + DIVIDER * r / 2
+    return [("m", [(x0, y0)]), ("l", [(x1, y0)]), ("l", [(x1, y1)]), ("l", [(x0, y1)]), ("h", [])]
 
 
 def main():
@@ -623,12 +640,16 @@ def main():
     ap.add_argument("--filename", help="파일명 형식 (기본: 1행 '{name}_국문_좌우_1행', 2행 '{name}_국문_좌우_2행', "
                                        "국영문 '{name}_국영혼합_좌우_1행|2행')")
     ap.add_argument("--px-per-pt", type=float, default=8.0, help="PNG 해상도 (pt 당 픽셀)")
+    ap.add_argument("--divider", action="store_true",
+                    help="2행(A·B·2행): 두 줄 사이에 정부회색 가로 구분선 (가이드에 없는 요청용)")
     ap.add_argument("--justify", action="store_true",
                     help="국영문: 국문 글자 사이를 벌려 양끝을 영문 폭에 맞춤 (가이드에 없는 요청용)")
     ap.add_argument("names", nargs="*", default=NAMES,
                     help="기관명 (기본: 지방국세청 7곳). 국영문은 '국문=English' (영문 2행은 '|' 로 구분). "
                          "파일명의 {name} 을 따로 줄 때는 끝에 '::이름' (예: '국립4·19민주묘지=...::국립4.19민주묘지')")
     args = ap.parse_args()
+    if args.divider and args.type not in ("A", "B", "2행"):
+        ap.error("--divider 는 2행 형식(A, B, 2행)에서만 쓸 수 있습니다.")
     if args.justify and args.type not in KE_TYPES:
         ap.error("--justify 는 국영문 형식(국영A, 국영B)에서만 쓸 수 있습니다.")
 
@@ -646,7 +667,7 @@ def main():
         entries.append((name, english or None, key.strip() or name.replace("|", "")))
     pngs = []
     for name, english, key in entries:
-        title, glyphs, geo = build(font, name, args.type, args.parent, english, args.justify)
+        title, glyphs, geo = build(font, name, args.type, args.parent, english, args.justify, args.divider)
         base = pattern.format(name=key, parent=args.parent or "")
         svg = os.path.join(args.out, "svg", base + ".svg")
         W, _ = write_svg(svg, title, geo, glyphs)
@@ -661,7 +682,7 @@ def main():
 
     # 규정선 검증 이미지 (첫 번째 기관)
     name, english, key = entries[0]
-    title, glyphs, geo = build(font, name, args.type, args.parent, english, args.justify)
+    title, glyphs, geo = build(font, name, args.type, args.parent, english, args.justify, args.divider)
     guide_svg = os.path.join(args.out, "구성규정_" + key + ".svg")
     W, _ = write_svg(guide_svg, title, geo, glyphs, guides=True)
     write_png(guide_svg, guide_svg[:-4] + ".png", W, args.px_per_pt)
