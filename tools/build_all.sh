@@ -45,6 +45,10 @@ O=$OUT/기관별
 "${B[@]}" --out "$O" --type A --parent 산림청 --filename "{name} 로고" \
     중부지방산림청 서부지방산림청 남부지방산림청 동부지방산림청 북부지방산림청 국립산림품종관리센터 산림교육원
 "${B[@]}" --out "$O" --type A --parent 국가보훈부 --filename "{name} 로고" 보훈심사위원회
+"${B[@]}" --out "$O" --type A --parent 산업통상부 --filename "{name} 로고" \
+    광업등록사무소 군산자유무역지역관리원 마산자유무역지역관리원 대불자유무역지역관리원 \
+    김제자유무역지역관리원 율촌자유무역지역관리원 울산자유무역지역관리원 동해자유무역지역관리원 \
+    동부광산안전사무소 중부광산안전사무소 서부광산안전사무소 남부광산안전사무소
 "${B[@]}" --out "$O" --type 국영B --filename "{name} 로고" \
     "국세공무원교육원=National Tax Officials Training Institute" \
     "관세평가분류원=Customs Valuation & Classification Institute" \
