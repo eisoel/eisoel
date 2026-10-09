@@ -325,7 +325,9 @@ def layout_ke(font, korean, english, kind, justify=False):
         text, baseline, scale = kor
         kor_right = union([seg_bounds(g) for g in lines[0]])[2]
         eng_right = max(union([seg_bounds(g) for g in line])[2] for line in lines[1:])
-        if len(text) < 2 or eng_right <= kor_right:
+        if len(text) < 2:
+            raise SystemExit(f"{korean}: 국문이 한 글자라 벌릴 글자 사이가 없습니다.")
+        if eng_right <= kor_right:
             raise SystemExit(f"{korean}: 국문이 영문보다 짧지 않아 양끝 맞춤을 할 수 없습니다.")
         extra = (eng_right - kor_right) / scale / (len(text) - 1)          # 글자 사이마다 더할 font unit
         lines[0] = set_line(font, text, baseline, scale, extra_kern=[extra] * (len(text) - 1), ink_left=ink_left)
@@ -533,7 +535,7 @@ def write_pdf(path, title, geo, glyphs):
         sep("GOK_Red", COLORS["red"][1]),
         b"<< /Length %d >>\nstream\n" % len(content) + content + b"endstream",
         (f"<< /Title {pdf_text_string(title)} "
-         f"/Subject {pdf_text_string('대한민국 정부상징 ' + TYPE_LABEL[geo['kind']] + geo.get('note', ''))} >>").encode(),
+         f"/Subject {pdf_text_string('대한민국 정부상징 ' + TYPE_LABEL[geo['kind']] + ('.' + geo['note'] if 'note' in geo else ''))} >>").encode(),
     ]
     data = bytearray(b"%PDF-1.5\n%\xe2\xe3\xcf\xd3\n")
     offsets = []
@@ -640,8 +642,8 @@ def main():
     entries = []
     for n in args.names:                         # '국문[=English][::파일명용 이름]'
         n, _, key = n.partition("::")
-        name, _, english = n.partition("=")
-        entries.append((name, english or None, key or name.replace("|", "")))
+        name, _, english = (s.strip() for s in n.partition("="))
+        entries.append((name, english or None, key.strip() or name.replace("|", "")))
     pngs = []
     for name, english, key in entries:
         title, glyphs, geo = build(font, name, args.type, args.parent, english, args.justify)
