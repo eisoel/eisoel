@@ -156,7 +156,7 @@ COLORS = {
     "gray": ("#575757", (0, 0, 0, 0.8), None),             # 정부회색 K80 (기관명)
 }
 
-DIVIDER = 0.25   # 두 줄 사이 구분선 두께 (r) — 가이드에 없는 요청용 (--divider)
+DIVIDER = 0.28   # 두 줄 사이 구분선 두께 (r) — 가이드에 없는 요청용 (--divider), 요청 참고 이미지 실측값
 
 CLEAR_X = 8   # 보호공간 좌우 (r)
 CLEAR_Y = 5   # 보호공간 상하 (r)
@@ -611,6 +611,8 @@ def build(font, name, kind, parent, english=None, justify=False, divider=False):
         glyphs = layout_lines(font, [parent, name], kind)
         title = f"{parent} {name}"
     if divider:
+        if kind not in ("A", "B", "2행"):
+            raise SystemExit(f"{name}: 구분선은 2행 형식(A, B, 2행)에서만 넣을 수 있습니다.")
         glyphs = glyphs + [divider_rule(glyphs, kind)]
     geo = geometry(glyphs, kind)
     if justify:
