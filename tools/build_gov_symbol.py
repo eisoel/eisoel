@@ -26,14 +26,15 @@
   * 대한민국정부_국문_좌우_1행.ai
       정부상징 문양 벡터(아래 EMBLEM)는 이 파일의 콘텐츠 스트림을 그대로 옮긴 값이다.
       기관명의 글자 크기·기준선·시작 위치도 같은 파일의 '대한민국정부' 아웃라인을
-      정부상징체.ttf 글리프와 대조해 얻은 값을 쓴다 (FONT_SCALE, BASELINE_Y, TEXT_INK_LEFT).
-  * 정부상징체.ttf — 기관명 글리프 아웃라인. 자간은 서체 기본값(BS 서론 p.7, 가운뎃점 뒤 1 제외).
-      서체에 없는 가운뎃점(·)은 서체의 쌍점 점을 숫자 높이 가운데에 놓아 만든다 (Font._middle_dot,
-      가이드 AS 5-06 '국립 5·18 민주묘지' 숫자표기 예시와 같은 방식). 점 뒤의 숫자 '1' 은 점이 시각적으로
-      가운데 보이도록 당긴다 (DOT_KERN).
+      정부상징체 글리프와 대조해 얻은 값을 쓴다 (FONT_SIZE, BASELINE_Y, TEXT_INK_LEFT).
+      (원본 AI 의 '대한민국정부' 는 글자 사이를 개별 조정해 x 위치가 서체 기본 간격과 최대 0.76pt 다르다.)
+  * 정부상징체.ttf — 대한민국정부상징체 R (ROKGR, 1000 upm, 한글 11,172자). 기관명 글리프 아웃라인.
+      자간은 서체 기본값(BS 서론 p.7). 단 가운뎃점(·) 뒤의 고정폭 숫자 '1' 은 점이 시각적으로 가운데
+      보이도록 당긴다 (DOT_KERN).
+  크기·구간 상수는 em 단위로 두어 서체 파일의 upm 과 무관하다 (처음 대조한 1024 upm 판과 같은 크기).
 
-글자 높이 규정(10r, 7.5r ...)은 글리프 높이 기준 795 ~ -97 font unit 구간에 해당한다.
-'대한민국정부' AI 대조(10r = 892 unit)와 가이드 BS 3-3-05 도면의 치수선(오차 0.07pt 이내)으로 확인했다.
+글자 높이 규정(10r, 7.5r ...)은 글리프 높이 기준 0.7764 ~ -0.0947 em 구간(1000 upm 에서 776 ~ -95)에 해당한다.
+'대한민국정부' AI 대조와 가이드 BS 3-3-05 도면의 치수선(오차 0.07pt 이내)으로 확인했다.
 
 좌표계는 원본 AI 문서의 PDF 좌표(pt, y 위쪽 증가)를 그대로 사용한다.
 
@@ -52,9 +53,6 @@ from xml.sax.saxutils import escape
 
 from fontTools.misc.bezierTools import calcCubicBounds
 from fontTools.pens.basePen import BasePen
-from fontTools.pens.boundsPen import BoundsPen
-from fontTools.pens.recordingPen import RecordingPen, replayRecording
-from fontTools.pens.transformPen import TransformPen
 from fontTools.ttLib import TTFont
 
 NAMES = [
@@ -111,13 +109,13 @@ f"""),
 f"""),
 ]
 
-# 원본 AI의 '대한민국정부' 아웃라인을 정부상징체.ttf와 대조해 얻은 값
-FONT_SCALE = 0.033844      # pt / font unit (가로·세로 동일, 34.656pt) — 기관명 높이 10r
+# 원본 AI의 '대한민국정부' 아웃라인을 정부상징체와 대조해 얻은 값
+FONT_SIZE = 0.033844 * 1024   # 34.656 pt (1 em) — 1행 기관명 높이 10r
 BASELINE_Y = 125.4431      # 1행 기준선 y (pt)
 TEXT_INK_LEFT = 229.4574   # 첫 글자 잉크 좌단 x (pt) — 문양 우단에서 5.5r
 
-# 글자 높이 규정이 가리키는 글리프 구간 (font unit)
-BOX_TOP, BOX_BOTTOM = 795, -97
+# 글자 높이 규정이 가리키는 글리프 구간 (em) — 1024 upm 판 대조값 795 ~ -97 unit
+BOX_TOP, BOX_BOTTOM = 795 / 1024, -97 / 1024
 
 # 조합 형식: 줄마다 (글자 높이 h, 문양 상단에서 글자 영역 상단까지 거리 t), 단위 r
 TYPES = {
@@ -134,11 +132,11 @@ TYPE_LABEL = {"1행": "국문 가로조합 1행", "A": "본부 병기형 국문 
 
 # 국영문 혼용 가로조합 (BS 3-03, BS 3-3-03) — 대한민국정부_국영혼합_좌우_1행.ai(Type B)·_2행.ai(Type A)의
 # '대한민국정부'와 영문 아웃라인을 정부상징체.ttf와 대조해 얻은 값. 단위 r, 깊이는 문양 상단에서 기준선까지.
-#   kor: 글자 높이 = 795 ~ -97 unit 구간 (8.5r),  eng: 대문자 높이 = 17 ~ 714 unit 구간 (3r)
+#   kor: 글자 높이 = BOX 구간 (8.5r),  eng: 대문자 높이 = ENG_CAP 구간 (3r, 1000 upm 에서 16 ~ 697)
 #   영문 기준선은 대문자(T·G·R·K)로 산출 — 원본 AI 의 소문자 어센더(h·l·b·f)와 i 점은 TTF 보다 낮아 제외
 #   영문 자간: 두 AI 모두 서체 기본 advance + kern 표에 균일한 트래킹 -8/1000 em (공백 포함 글자마다)
 #   (문양 우단 → 잉크 좌단 간격, ((역할, 높이, 기준선 깊이), ...))
-ENG_CAP = (17, 714)
+ENG_CAP = (17 / 1024, 714 / 1024)   # em
 ENG_TRACKING = -8          # 1/1000 em
 KE_TYPES = {
     "국영B": (4.9986, (("kor", 8.5025, 10.3070), ("eng", 2.9967, 17.3500))),
@@ -223,10 +221,10 @@ def union(boxes):
             max(b[2] for b in boxes), max(b[3] for b in boxes))
 
 
-MIDDLE_DOT = "periodcentered"
-# 가운뎃점 뒤 kern (font unit). 고정폭 숫자 '1' 은 왼쪽 여백이 넓어(101, 기둥은 292부터) 기본 간격으로는
-# 점이 앞 숫자에 붙어 보인다. 4·19, 3·15 를 0 ~ -150 으로 조판해 블라인드로 비교한 시각 판정값.
-DOT_KERN = {"1": -110}
+# 가운뎃점(·) 뒤 kern (1/1000 em). 고정폭 숫자 '1' 은 왼쪽 여백이 넓어(99, 기둥은 285부터) 기본 간격으로는
+# 점이 앞 숫자에 붙어 보인다. 점과 양옆 숫자 윤곽의 최단 거리가 같아지는 값(4·1 -85, 3·1 -90, 5·1 -95).
+# 같은 기준이 쌍점으로 만든 점(이전 판)에서 블라인드 시각 비교로 고른 값(-110/1024 em)과 일치했다.
+DOT_KERN = {"1": -90}
 MIDDLE_DOT_CHARS = "\u00b7\u2027\u30fb\u318d"   # ·  ‧  ・  ㆍ(한글 자판의 가운뎃점 대용)
 
 
@@ -236,61 +234,33 @@ class Font:
         self.gs = self.tt.getGlyphSet()
         self.cmap = self.tt.getBestCmap()
         self.hmtx = self.tt["hmtx"]
-        kern = self.tt["kern"].kernTables[0].kernTable if "kern" in self.tt else {}
-        self.kern = kern
-        self.synth = {}
-        if 0xB7 not in self.cmap and 0x3A in self.cmap:
-            self.synth[MIDDLE_DOT] = self._middle_dot(self.cmap[0x3A])
-            self.kern = dict(kern)
+        self.upm = self.tt["head"].unitsPerEm
+        self.scale = FONT_SIZE / self.upm               # 1행 pt / font unit
+        self.kern = dict(self.tt["kern"].kernTables[0].kernTable) if "kern" in self.tt else {}
+        if 0xB7 in self.cmap:
             for right, value in DOT_KERN.items():
-                self.kern[(MIDDLE_DOT, self.glyph(right))] = value
-
-    def _middle_dot(self, colon):
-        """가운뎃점(·) — 정부상징체에 없어 서체의 쌍점(:) 아래 점을 두 점의 가운데 높이로 올려 쓴다.
-        폭·좌우 여백은 쌍점과 같다. 가이드 AS 5-06 '국립 5·18 민주묘지'(숫자표기 예시)도 서체의
-        마침표 점을 숫자 사이 가운데에 놓았다."""
-        rec = RecordingPen()
-        self.gs[colon].draw(rec)
-        contours, cur = [], []
-        for op, args in rec.value:
-            cur.append((op, args))
-            if op in ("closePath", "endPath"):
-                contours.append(cur)
-                cur = []
-
-        def bounds(c):
-            bp = BoundsPen(self.gs)
-            replayRecording(c, bp)
-            return bp.bounds
-
-        lower, upper = sorted(contours, key=lambda c: bounds(c)[1])
-        (_, l0, _, l1), (_, u0, _, u1) = bounds(lower), bounds(upper)
-        dy = (l0 + l1 + u0 + u1) / 4 - (l0 + l1) / 2
-        return self.hmtx[colon], lower, dy
+                self.kern[(self.cmap[0xB7], self.glyph(right))] = value * self.upm / 1000
 
     def glyph(self, ch):
-        if ch in MIDDLE_DOT_CHARS and MIDDLE_DOT in self.synth:
-            return MIDDLE_DOT
+        if ch in MIDDLE_DOT_CHARS:
+            ch = "\u00b7"
         if ord(ch) not in self.cmap:
             raise SystemExit(f"정부상징체에 '{ch}' 글리프가 없습니다.")
         return self.cmap[ord(ch)]
 
     def metrics(self, gname):
         """(advance, lsb) font unit"""
-        return self.synth[gname][0] if gname in self.synth else self.hmtx[gname]
+        return self.hmtx[gname]
 
-    def outline(self, gname, ox, oy, scale=FONT_SCALE):
-        pen = SegmentPen(self.gs, ox, oy, scale)
-        if gname in self.synth:
-            _, contour, dy = self.synth[gname]
-            replayRecording(contour, TransformPen(pen, (1, 0, 0, 1, 0, dy)))
-        else:
-            self.gs[gname].draw(pen)
+    def outline(self, gname, ox, oy, scale=None):
+        pen = SegmentPen(self.gs, ox, oy, scale or self.scale)
+        self.gs[gname].draw(pen)
         return pen.segs
 
 
-def set_line(font, text, baseline, scale=FONT_SCALE, extra_kern=None, ink_left=TEXT_INK_LEFT):
+def set_line(font, text, baseline, scale=None, extra_kern=None, ink_left=TEXT_INK_LEFT):
     """한 줄 배치. 첫 글자 잉크 좌단을 ink_left 에 맞추고 서체 기본 자간(+kern 표)으로 배열."""
+    scale = scale or font.scale
     gnames = [font.glyph(ch) for ch in text]
     first = font.outline(gnames[0], 0, 0, scale)
     x = ink_left - seg_bounds(first)[0]
@@ -318,9 +288,9 @@ def layout_lines(font, lines, kind):
     top, r = m["cy"] + m["R"], m["r"]
     glyphs = []
     for text, (h, t) in zip(lines, TYPES[kind]):
-        scale = FONT_SCALE * h / 10
-        baseline = top - (t + h) * r - BOX_BOTTOM * scale
-        glyphs += set_line(font, text, baseline, scale)
+        em = FONT_SIZE * h / 10                  # pt / em
+        baseline = top - (t + h) * r - BOX_BOTTOM * em
+        glyphs += set_line(font, text, baseline, em / font.upm)
     return glyphs
 
 
@@ -333,14 +303,14 @@ def layout_ke(font, korean, english, kind):
     if len(texts) != len(spec):
         raise SystemExit(f"{korean}: {kind} 는 영문 {len(spec) - 1}행이 필요합니다 (받은 값: {english}).")
     ink_left = m["cx"] + m["R"] + gap * r
-    upm = font.tt["head"].unitsPerEm
+    upm = font.upm
     glyphs = []
     eng_origin = None
     for text, (role, size, depth) in zip(texts, spec):
         if role == "kor":
-            scale, track, left = size * r / (BOX_TOP - BOX_BOTTOM), None, ink_left
+            scale, track, left = size * r / (BOX_TOP - BOX_BOTTOM) / upm, None, ink_left
         else:
-            scale = size * r / (ENG_CAP[1] - ENG_CAP[0])
+            scale = size * r / (ENG_CAP[1] - ENG_CAP[0]) / upm
             track = [ENG_TRACKING * upm / 1000] * (len(text) - 1)
             lsb = font.metrics(font.glyph(text[0]))[1] * scale
             if eng_origin is None:              # 영문 첫 줄: 잉크 좌단을 국문과 같은 5r 선에
