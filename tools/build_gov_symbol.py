@@ -27,7 +27,7 @@
       정부상징 문양 벡터(아래 EMBLEM)는 이 파일의 콘텐츠 스트림을 그대로 옮긴 값이다.
       기관명의 글자 크기·기준선·시작 위치도 같은 파일의 '대한민국정부' 아웃라인을
       정부상징체.ttf 글리프와 대조해 얻은 값을 쓴다 (FONT_SCALE, BASELINE_Y, TEXT_INK_LEFT).
-  * 정부상징체.ttf — 기관명 글리프 아웃라인. 자간은 서체 기본값(추가 조정 없음, BS 서론 p.7).
+  * 정부상징체.ttf — 기관명 글리프 아웃라인. 자간은 서체 기본값(BS 서론 p.7, 가운뎃점 뒤 1 제외).
       서체에 없는 가운뎃점(·)은 서체의 쌍점 점을 숫자 높이 가운데에 놓아 만든다 (Font._middle_dot,
       가이드 AS 5-06 '국립 5·18 민주묘지' 숫자표기 예시와 같은 방식). 점 뒤의 숫자 '1' 은 점이 시각적으로
       가운데 보이도록 당긴다 (DOT_KERN).
@@ -226,7 +226,7 @@ def union(boxes):
 MIDDLE_DOT = "periodcentered"
 # 가운뎃점 뒤 kern (font unit). 고정폭 숫자 '1' 은 왼쪽 여백이 넓어(101, 기둥은 292부터) 기본 간격으로는
 # 점이 앞 숫자에 붙어 보인다. 4·19, 3·15 를 0 ~ -150 으로 조판해 블라인드로 비교한 시각 판정값.
-DOT_KERN = {"one": -110}
+DOT_KERN = {"1": -110}
 MIDDLE_DOT_CHARS = "\u00b7\u2027\u30fb\u318d"   # ·  ‧  ・  ㆍ(한글 자판의 가운뎃점 대용)
 
 
@@ -243,7 +243,7 @@ class Font:
             self.synth[MIDDLE_DOT] = self._middle_dot(self.cmap[0x3A])
             self.kern = dict(kern)
             for right, value in DOT_KERN.items():
-                self.kern[(MIDDLE_DOT, right)] = value
+                self.kern[(MIDDLE_DOT, self.glyph(right))] = value
 
     def _middle_dot(self, colon):
         """가운뎃점(·) — 정부상징체에 없어 서체의 쌍점(:) 아래 점을 두 점의 가운데 높이로 올려 쓴다.
@@ -600,6 +600,7 @@ def write_preview(pngs, path, gap=24):
 
 def build(font, name, kind, parent, english=None):
     """(제목, 글리프, 기하) — 1행: 기관명만, A/B: 본부명/기관명 2행, 국영B/국영A: 국문 + 영문."""
+    name = "".join("\u00b7" if ch in MIDDLE_DOT_CHARS else ch for ch in name)   # 제목도 같은 가운뎃점으로
     if kind == "1행":
         n = len(name)
         if n <= 3:
