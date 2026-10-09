@@ -295,8 +295,9 @@ def layout_lines(font, lines, kind):
     return glyphs
 
 
-def layout_ke(font, korean, english, kind):
-    """국영문 혼용 — 국문 기관명 + 영문 기관명(1행 또는 2행), 모든 줄 잉크 좌단 정렬."""
+def layout_ke(font, korean, english, kind, justify=False):
+    """국영문 혼용 — 국문 기관명 + 영문 기관명(1행 또는 2행), 모든 줄 잉크 좌단 정렬.
+    justify: 국문 글자 사이를 고르게 벌려 국문 잉크 우단을 영문(가장 긴 줄) 잉크 우단에 맞춘다 — 가이드에 없는 요청용."""
     m = emblem_metrics()
     top, r = m["cy"] + m["R"], m["r"]
     gap, spec = KE_TYPES[kind]
@@ -305,11 +306,12 @@ def layout_ke(font, korean, english, kind):
         raise SystemExit(f"{korean}: {kind} 는 영문 {len(spec) - 1}행이 필요합니다 (받은 값: {english}).")
     ink_left = m["cx"] + m["R"] + gap * r
     upm = font.upm
-    glyphs = []
+    lines = []
     eng_origin = None
     for text, (role, size, depth) in zip(texts, spec):
         if role == "kor":
             scale, track, left = size * r / (BOX_TOP - BOX_BOTTOM) / upm, None, ink_left
+            kor = (text, top - depth * r, scale)
         else:
             scale = size * r / (ENG_CAP[1] - ENG_CAP[0]) / upm
             track = [ENG_TRACKING * upm / 1000] * (len(text) - 1)
@@ -318,8 +320,16 @@ def layout_ke(font, korean, english, kind):
                 left, eng_origin = ink_left, ink_left - lsb
             else:                               # 영문 둘째 줄: 첫 줄과 글자 원점 정렬 (원본 2행 AI 와 같음)
                 left = eng_origin + lsb
-        glyphs += set_line(font, text, top - depth * r, scale, extra_kern=track, ink_left=left)
-    return glyphs
+        lines.append(set_line(font, text, top - depth * r, scale, extra_kern=track, ink_left=left))
+    if justify:
+        text, baseline, scale = kor
+        kor_right = union([seg_bounds(g) for g in lines[0]])[2]
+        eng_right = max(union([seg_bounds(g) for g in line])[2] for line in lines[1:])
+        if len(text) < 2 or eng_right <= kor_right:
+            raise SystemExit(f"{korean}: 국문이 영문보다 짧지 않아 양끝 맞춤을 할 수 없습니다.")
+        extra = (eng_right - kor_right) / scale / (len(text) - 1)          # 글자 사이마다 더할 font unit
+        lines[0] = set_line(font, text, baseline, scale, extra_kern=[extra] * (len(text) - 1), ink_left=ink_left)
+    return [g for line in lines for g in line]
 
 
 def emblem():
@@ -386,7 +396,7 @@ def write_svg(path, title, geo, glyphs, guides=False):
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{fmt(W)}pt" height="{fmt(H)}pt" '
         f'viewBox="0 0 {fmt(W)} {fmt(H)}">',
         f"<title>{escape(title)}</title>",
-        f"<desc>대한민국 정부상징 — {TYPE_LABEL[geo['kind']]}. "
+        f"<desc>대한민국 정부상징 — {TYPE_LABEL[geo['kind']]}.{geo.get('note', '')} "
         "캔버스는 보호공간(좌우 8r, 상하 5r)을 포함.</desc>",
         '<g id="emblem">',
     ]
@@ -523,7 +533,7 @@ def write_pdf(path, title, geo, glyphs):
         sep("GOK_Red", COLORS["red"][1]),
         b"<< /Length %d >>\nstream\n" % len(content) + content + b"endstream",
         (f"<< /Title {pdf_text_string(title)} "
-         f"/Subject {pdf_text_string('대한민국 정부상징 ' + TYPE_LABEL[geo['kind']])} >>").encode(),
+         f"/Subject {pdf_text_string('대한민국 정부상징 ' + TYPE_LABEL[geo['kind']] + geo.get('note', ''))} >>").encode(),
     ]
     data = bytearray(b"%PDF-1.5\n%\xe2\xe3\xcf\xd3\n")
     offsets = []
@@ -569,7 +579,7 @@ def write_preview(pngs, path, gap=24):
     sheet.save(path)
 
 
-def build(font, name, kind, parent, english=None):
+def build(font, name, kind, parent, english=None, justify=False):
     """(제목, 글리프, 기하) — 1행: 기관명만, A/B: 본부명/기관명 2행, 국영B/국영A: 국문 + 영문."""
     name = "".join("\u00b7" if ch in MIDDLE_DOT_CHARS else ch for ch in name)   # 제목도 같은 가운뎃점으로
     if kind == "1행":
@@ -582,7 +592,7 @@ def build(font, name, kind, parent, english=None):
         if not english:
             raise SystemExit(f"{name}: 국영문 혼용은 영문명이 필요합니다 ('{name}=English Name', 2행은 '|' 로 구분).")
         lines = english.split("|")
-        glyphs = layout_ke(font, name, lines, kind)
+        glyphs = layout_ke(font, name, lines, kind, justify)
         title = f"{name} {' '.join(lines)}"
     elif kind == "2행":
         lines = name.split("|")
@@ -596,7 +606,10 @@ def build(font, name, kind, parent, english=None):
             raise SystemExit(f"{kind} type 은 --parent(본부명)가 필요합니다.")
         glyphs = layout_lines(font, [parent, name], kind)
         title = f"{parent} {name}"
-    return title, glyphs, geometry(glyphs, kind)
+    geo = geometry(glyphs, kind)
+    if justify:
+        geo["note"] = " 국문 양끝을 영문 폭에 맞춤(요청에 따른 가이드 예외)."
+    return title, glyphs, geo
 
 
 def main():
@@ -608,10 +621,14 @@ def main():
     ap.add_argument("--filename", help="파일명 형식 (기본: 1행 '{name}_국문_좌우_1행', 2행 '{name}_국문_좌우_2행', "
                                        "국영문 '{name}_국영혼합_좌우_1행|2행')")
     ap.add_argument("--px-per-pt", type=float, default=8.0, help="PNG 해상도 (pt 당 픽셀)")
+    ap.add_argument("--justify", action="store_true",
+                    help="국영문: 국문 글자 사이를 벌려 양끝을 영문 폭에 맞춤 (가이드에 없는 요청용)")
     ap.add_argument("names", nargs="*", default=NAMES,
                     help="기관명 (기본: 지방국세청 7곳). 국영문은 '국문=English' (영문 2행은 '|' 로 구분). "
                          "파일명의 {name} 을 따로 줄 때는 끝에 '::이름' (예: '국립4·19민주묘지=...::국립4.19민주묘지')")
     args = ap.parse_args()
+    if args.justify and args.type not in KE_TYPES:
+        ap.error("--justify 는 국영문 형식(국영A, 국영B)에서만 쓸 수 있습니다.")
 
     font = Font(args.font)
     default_pattern = {"1행": "{name}_국문_좌우_1행", "국영B": "{name}_국영혼합_좌우_1행",
@@ -627,7 +644,7 @@ def main():
         entries.append((name, english or None, key or name.replace("|", "")))
     pngs = []
     for name, english, key in entries:
-        title, glyphs, geo = build(font, name, args.type, args.parent, english)
+        title, glyphs, geo = build(font, name, args.type, args.parent, english, args.justify)
         base = pattern.format(name=key, parent=args.parent or "")
         svg = os.path.join(args.out, "svg", base + ".svg")
         W, _ = write_svg(svg, title, geo, glyphs)
@@ -642,7 +659,7 @@ def main():
 
     # 규정선 검증 이미지 (첫 번째 기관)
     name, english, key = entries[0]
-    title, glyphs, geo = build(font, name, args.type, args.parent, english)
+    title, glyphs, geo = build(font, name, args.type, args.parent, english, args.justify)
     guide_svg = os.path.join(args.out, "구성규정_" + key + ".svg")
     W, _ = write_svg(guide_svg, title, geo, glyphs, guides=True)
     write_png(guide_svg, guide_svg[:-4] + ".png", W, args.px_per_pt)

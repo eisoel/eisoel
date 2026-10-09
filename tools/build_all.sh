@@ -55,6 +55,8 @@ O=$OUT/기관별
     "국립4·19민주묘지=April 19th National Cemetery::국립4.19민주묘지" \
     "국립3·15민주묘지=March 15th National Cemetery::국립3.15민주묘지"
 "${B[@]}" --out "$O" --type 국영A --filename "{name} 로고" "국가기후위기대응위원회=Presidential Commission|on Climate Crisis Response"
+# 가이드에 없는 요청: 국문 양끝을 영문 폭에 맞춤
+"${B[@]}" --out "$O" --type 국영B --justify --filename "{name} 로고" "무역위원회=KOREA TRADE COMMISSION"
 
 python3 - "$O" <<'PY'
 import glob, os, sys
