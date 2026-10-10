@@ -77,6 +77,12 @@ O=$OUT/기관별
 # 가이드에 없는 요청: 국문 양끝을 영문 폭에 맞춤
 "${B[@]}" --out "$O" --type 국영B --justify --filename "{name} 로고" "무역위원회=KOREA TRADE COMMISSION"
 
+# 정부상징 밖 요청: 우주항공청 KASA 마크 + 기관명 (KASA_SVG=우주항공청 로고.svg 가 있을 때만)
+if [ -n "${KASA_SVG:-}" ]; then
+    rm -rf "$OUT/우주항공청"
+    python3 tools/kasa_lockup.py --font "$FONT" --kasa "$(realpath "$KASA_SVG")" --out "$OUT/우주항공청" "우주항공청|우주환경센터"
+fi
+
 # 요청 참고 이미지에 맞춘 3종 (국립외교원, 방위사업교육원, 정부합동민원센터)
 python3 tools/custom_lockups.py --font "$FONT" --out "$O"
 
