@@ -68,17 +68,17 @@ O=$OUT/기관별
     "국립3·15민주묘지=March 15th National Cemetery::국립3.15민주묘지"
 "${B[@]}" --out "$O" --type 국영A --filename "{name} 로고" "국가기후위기대응위원회=Presidential Commission|on Climate Crisis Response"
 "${B[@]}" --out "$O" --type 1행 --filename "{name} 로고" 기상레이더센터 국가청렴권익교육원
-"${B[@]}" --out "$O" --type 국영B --filename "{name} 로고" "방위사업교육원=Defense Acquisition Program Training Institute"
 "${B[@]}" --out "$O" --type A --parent 교육부 --filename "{name} 로고" 국립특수교육원
-"${B[@]}" --out "$O" --type A --parent "국민권익위원회가 운영하는 종합민원상담창구" --filename "{name} 로고" 정부합동민원센터
 "${B[@]}" --out "$O" --type A --parent 국가데이터처 --filename "{name} 로고" 국가데이터인재개발원
 "${B[@]}" --out "$O" --type A --parent 보건복지부 --filename "{name} 로고" \
     국립정신건강센터 오송생명과학단지지원센터 국립장기조직혈액관리원 국립소록도병원 국립재활원 \
     국립부곡병원 국립나주병원 국립공주병원
 "${B[@]}" --out "$O" --type A --parent 법무부 --filename "{name} 로고" 법무연수원
 # 가이드에 없는 요청: 국문 양끝을 영문 폭에 맞춤
-"${B[@]}" --out "$O" --type 국영B --justify --filename "{name} 로고" "무역위원회=KOREA TRADE COMMISSION" \
-    "국립외교원=Korea National Diplomatic Academy"
+"${B[@]}" --out "$O" --type 국영B --justify --filename "{name} 로고" "무역위원회=KOREA TRADE COMMISSION"
+
+# 요청 참고 이미지에 맞춘 3종 (국립외교원, 방위사업교육원, 정부합동민원센터)
+python3 tools/custom_lockups.py --font "$FONT" --out "$O"
 
 python3 - "$O" <<'PY'
 import glob, os, sys
