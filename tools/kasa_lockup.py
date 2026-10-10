@@ -3,8 +3,8 @@
 
 KASA 마크는 '우주항공청 로고.svg' 의 벡터를 그대로 쓴다 (KASA 글자·궤도·별, 아래 '우주항공청'·영문 줄은 제외).
 구도 ('우주환경센터.webp' 참고):
-  * 글자 영역 위 = 마크(별) 위, 글자 영역 아래 = KASA 글자 기준선 — 그 높이를 A type 15.4r(5.5r/2.4r/7.5r)로 나눔
-  * 마크와 글자 사이 5.5r, 바탕 여백 좌우 8r · 상하 5r
+  * 줄별 글자 크기·시작 위치·줄 간격은 참고 이미지 실측값 (REF_LINES), 글자 묶음과 마크는 세로 중심선 정렬
+  * 바탕 여백 좌우 8r · 상하 5r (마크 높이 = 15.4r)
   * 글자는 정부상징체, 검은색 (#000000 / K100)
 
   python3 tools/kasa_lockup.py --font 정부상징체.ttf --kasa '우주항공청 로고.svg' --out logos/우주항공청 \\
@@ -26,8 +26,11 @@ import build_gov_symbol as b
 
 NS = "{http://www.w3.org/2000/svg}"
 MARK_LETTER_BOTTOM = 202.17     # KASA 글자 기준선 (원본 좌표)
-LINES = ((5.5, 0.0), (7.5, 5.5 + 2.4))   # (글자 높이, 글자 영역 위에서 거리) r — A type
-GAP, CLEAR_X, CLEAR_Y = 5.5, 8, 5
+LINES = ((5.5, 0.0), (7.5, 5.5 + 2.4))   # A type 글자 영역 15.4r — 여백 단위 r 를 정하는 데만 씀
+CLEAR_X, CLEAR_Y = 8, 5
+# '우주환경센터.webp' (209x49 px) 실측: 마크 잉크 상자, 줄별 잉크 상자 (x0, y0, x1, y1)
+REF_MARK = (2, 11, 94, 36)
+REF_LINES = ((99, 8, 151, 20), (98, 22, 207, 41))
 
 
 def kasa_mark(path):
@@ -65,13 +68,20 @@ def build(font, kasa, parent, name, out, base, png_height):
     tx, ty = (float(v) for v in tr[tr.index("(") + 1:-1].split())     # translate(tx ty)
     x0, y0, x1 = box[0] + tx, box[1] + ty, box[2] + tx
     h = MARK_LETTER_BOTTOM + ty - y0
-    r = h / sum(LINES[-1])                                  # 글자 영역 15.4r = 마크 높이
-    # 글자: y 위쪽 증가 좌표 (원본 y 를 뒤집음, 마크 위 = h)
+    r = h / sum(LINES[-1])                                  # 여백 단위: 마크 높이 = 15.4r (A type 글자 영역)
+    k = (x1 - x0) / (REF_MARK[2] - REF_MARK[0])             # 참고 이미지 1 px → 원본 좌표
+    # 글자: y 위쪽 증가 좌표 (원본 y 를 뒤집음, 마크 위 = h). 줄마다 참고 이미지의 잉크 폭에 맞춰 크기를 정하고
+    # 시작 위치·줄 간격은 참고 이미지대로, 글자 묶음 전체의 세로 가운데를 마크의 가운데에 맞춘다.
     glyphs = []
-    for text, (lh, t) in zip((parent, name), LINES):
-        em = lh * r / (b.BOX_TOP - b.BOX_BOTTOM)
-        baseline = h - (t + lh) * r - b.BOX_BOTTOM * em
-        glyphs += b.set_line(font, text, baseline, em / font.upm, ink_left=(x1 - x0) + GAP * r)
+    for text, (px0, py0, px1, py1) in zip((parent, name), REF_LINES):
+        box = b.union([b.seg_bounds(g) for g in b.set_line(font, text, 0, 1.0, ink_left=0)])
+        scale = (px1 - px0) * k / (box[2] - box[0])
+        yc = -((py0 + py1) / 2 - REF_MARK[1]) * k              # 마크 위에서 아래로 (y 위쪽 증가라 음수)
+        baseline = h + yc - (box[1] + box[3]) / 2 * scale
+        glyphs += b.set_line(font, text, baseline, scale, ink_left=(x1 - x0) + (px0 - REF_MARK[2]) * k)
+    tb = b.union([b.seg_bounds(g) for g in glyphs])
+    dy = h / 2 - (tb[1] + tb[3]) / 2                        # 중심선 정렬
+    glyphs = [[(op, [(x, y + dy) for x, y in pts]) for op, pts in g] for g in glyphs]
     tb = b.union([b.seg_bounds(g) for g in glyphs])
     left, right = -CLEAR_X * r, max(x1 - x0, tb[2]) + CLEAR_X * r
     top, bottom = max(h, tb[3]) + CLEAR_Y * r, min(0, tb[1]) - CLEAR_Y * r
