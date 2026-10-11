@@ -89,6 +89,12 @@ if [ -n "${KASA_SVG:-}" ]; then
     python3 tools/kasa_lockup.py --font "$FONT" --kasa "$(realpath "$KASA_SVG")" --out "$OUT/우주항공청" "우주항공청|우주환경센터"
 fi
 
+# 정부상징 밖 요청: 관세청 엠블럼 + 영문 슬로건/관세국경인재개발원 (CUSTOMS_SVG=연수원.svg 가 있을 때만)
+if [ -n "${CUSTOMS_SVG:-}" ]; then
+    rm -rf "$OUT/관세국경인재개발원"
+    python3 tools/customs_lockup.py --font "$FONT" --emblem "$(realpath "$CUSTOMS_SVG")" --out "$OUT/관세국경인재개발원"
+fi
+
 # 요청 참고 이미지에 맞춘 3종 (국립외교원, 방위사업교육원, 정부합동민원센터)
 python3 tools/custom_lockups.py --font "$FONT" --out "$O"
 
