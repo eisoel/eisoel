@@ -74,6 +74,12 @@ O=$OUT/기관별
     국립정신건강센터 오송생명과학단지지원센터 국립장기조직혈액관리원 국립소록도병원 국립재활원 \
     국립부곡병원 국립나주병원 국립공주병원
 "${B[@]}" --out "$O" --type A --parent 법무부 --filename "{name} 로고" 법무연수원
+"${B[@]}" --out "$O" --type A --parent 문화체육관광부 --filename "{name} 로고" 국립장애인도서관
+"${B[@]}" --out "$O" --type A --parent 대통령직속 --filename "{name} 로고" 인구전략위원회
+"${B[@]}" --out "$O" --type A --parent 질병관리청 --filename "{name} 로고" \
+    경남권질병대응센터 경북권질병대응센터 호남권질병대응센터 충청권질병대응센터 수도권질병대응센터 \
+    국립목포병원 국립마산병원
+"${B[@]}" --out "$O" --type 1행 --filename "{name} 로고" "대체역 심사위원회"
 # 가이드에 없는 요청: 국문 양끝을 영문 폭에 맞춤
 "${B[@]}" --out "$O" --type 국영B --justify --filename "{name} 로고" "무역위원회=KOREA TRADE COMMISSION"
 
