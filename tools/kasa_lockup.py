@@ -51,13 +51,10 @@ def presentation_defs(el):
     return "<defs>" + "".join(out) + "</defs>"
 
 
-def kasa_mark(path, legacy=False):
+def kasa_mark(path):
     """원본 SVG 에서 KASA 마크 부분만: (translate, defs xml, [(fill, d)], 마크 상자)."""
     root = ET.parse(path).getroot()
-    if legacy:
-        defs = ET.tostring(root.find(NS + "defs"), encoding="unicode").replace("ns0:", "").replace(":ns0", "")
-    else:
-        defs = presentation_defs(root.find(NS + "defs"))
+    defs = presentation_defs(root.find(NS + "defs"))
     parts, box = [], None
     for el in root.iter(NS + "path"):
         rec = RecordingPen()
@@ -75,7 +72,7 @@ def kasa_mark(path, legacy=False):
             if bp.bounds[3] <= MARK_LETTER_BOTTOM + 0.5:      # 마크 (글자 줄 아래는 제외)
                 keep.append(s)
                 box = bp.bounds if box is None else b.union([box, bp.bounds])
-        pen = SVGPathPen(None) if legacy else SVGPathPen(None, ntos=b.sfmt)
+        pen = SVGPathPen(None, ntos=b.sfmt)
         for s in keep:
             replayRecording(s, pen)
         fill = el.get("fill") or "url(#a)"
@@ -84,8 +81,8 @@ def kasa_mark(path, legacy=False):
     return tr, defs, parts, box
 
 
-def build(font, kasa, parent, name, out, base, png_height, legacy=False):
-    tr, defs, parts, box = kasa_mark(kasa, legacy)
+def build(font, kasa, parent, name, out, base, png_height):
+    tr, defs, parts, box = kasa_mark(kasa)
     tx, ty = (float(v) for v in tr[tr.index("(") + 1:-1].split())     # translate(tx ty)
     x0, y0, x1 = box[0] + tx, box[1] + ty, box[2] + tx
     h = MARK_LETTER_BOTTOM + ty - y0
@@ -116,12 +113,8 @@ def build(font, kasa, parent, name, out, base, png_height, legacy=False):
     out_svg = ['<?xml version="1.0" encoding="UTF-8"?>',
                f'<svg xmlns="http://www.w3.org/2000/svg" width="{f(W)}" height="{f(H)}" '
                f'viewBox="0 0 {f(W)} {f(H)}">',
-               f"<title>{parent} {name}</title>"]
-    if legacy:
-        out_svg.append("<desc>우주항공청 KASA 마크 + 정부상징체 기관명 (정부상징 밖 요청 로고). "
-                       "바탕 여백 좌우 8r, 상하 5r 포함.</desc>")
-    out_svg += [defs, f'<g id="kasa" transform="translate({f(mx)} {f(my)}) {tr}">' if legacy else
-                f'<g id="kasa" transform="translate({f(mx + tx)} {f(my + ty)})">']
+               f"<title>{parent} {name}</title>",
+               defs, f'<g id="kasa" transform="translate({f(mx + tx)} {f(my + ty)})">']
     out_svg += [f'<path fill="{fill}" d="{d}"/>' for fill, d in parts if d]
     out_svg += ["</g>", '<g id="name" fill="#000000">']
     out_svg += [f'<path d="{b.svg_path(g, tf)}"/>' for g in glyphs]
@@ -147,16 +140,12 @@ def main():
     ap.add_argument("--out", default="logos/우주항공청")
     ap.add_argument("--filename", default="{name} 로고")
     ap.add_argument("--png-height", type=int, default=710, help="PNG 높이 (px, 다른 로고와 같은 710)")
-    ap.add_argument("--legacy-svg", action="store_true", help="이전 SVG 형식(소수점 4자리 + <desc>, style 속성)")
     ap.add_argument("names", nargs="+", help="'본부명|기관명'")
     args = ap.parse_args()
-    if args.legacy_svg:
-        b.use_legacy_svg()
     font = b.Font(args.font)
     for n in args.names:
         parent, name = n.split("|")
-        build(font, args.kasa, parent, name, args.out, args.filename.format(name=name), args.png_height,
-              args.legacy_svg)
+        build(font, args.kasa, parent, name, args.out, args.filename.format(name=name), args.png_height)
 
 
 if __name__ == "__main__":

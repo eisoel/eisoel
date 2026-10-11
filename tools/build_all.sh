@@ -10,9 +10,7 @@ for d in "$OUT" "$OUT/고용노동부" "$OUT/관세청" "$OUT/기관별"; do
     rm -rf "$d/svg" "$d/pdf" "$d/png"
     rm -f "$d"/구성규정_*.png "$d/미리보기.png"
 done
-# 이미 만든 파일은 이전 SVG 형식(--legacy-svg)으로 그대로 다시 만든다. 새로 추가하는 기관은 N=(...) 로.
-B=(python3 tools/build_gov_symbol.py --font "$FONT" --legacy-svg)
-N=(python3 tools/build_gov_symbol.py --font "$FONT")
+B=(python3 tools/build_gov_symbol.py --font "$FONT")
 O=$OUT/기관별
 
 # 지방국세청 (1행), 지방고용노동청 (A type), 본부세관 (국영문 Type B)
@@ -82,11 +80,11 @@ O=$OUT/기관별
 # 정부상징 밖 요청: 우주항공청 KASA 마크 + 기관명 (KASA_SVG=우주항공청 로고.svg 가 있을 때만)
 if [ -n "${KASA_SVG:-}" ]; then
     rm -rf "$OUT/우주항공청"
-    python3 tools/kasa_lockup.py --font "$FONT" --kasa "$(realpath "$KASA_SVG")" --out "$OUT/우주항공청" --legacy-svg "우주항공청|우주환경센터"
+    python3 tools/kasa_lockup.py --font "$FONT" --kasa "$(realpath "$KASA_SVG")" --out "$OUT/우주항공청" "우주항공청|우주환경센터"
 fi
 
 # 요청 참고 이미지에 맞춘 3종 (국립외교원, 방위사업교육원, 정부합동민원센터)
-python3 tools/custom_lockups.py --font "$FONT" --out "$O" --legacy-svg
+python3 tools/custom_lockups.py --font "$FONT" --out "$O"
 
 python3 - "$O" <<'PY'
 import glob, os, sys

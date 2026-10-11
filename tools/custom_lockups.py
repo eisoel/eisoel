@@ -56,10 +56,7 @@ def main():
     ap.add_argument("--font", required=True)
     ap.add_argument("--out", default="logos/기관별")
     ap.add_argument("--px-per-pt", type=float, default=8.0)
-    ap.add_argument("--legacy-svg", action="store_true", help="이전 SVG 형식(소수점 4자리 + <desc>)")
     args = ap.parse_args()
-    if args.legacy_svg:
-        b.use_legacy_svg()
     font = b.Font(args.font)
     m = b.emblem_metrics()
     for d in ("svg", "pdf", "png"):
