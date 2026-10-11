@@ -134,6 +134,6 @@ python3 tools/build_gov_symbol.py --font path/to/정부상징체.ttf --out logos
 (예: `"국립4·19민주묘지=April 19th National Cemetery::국립4.19민주묘지"` → `국립4.19민주묘지 로고.svg`).
 `우주항공청/`은 `KASA_SVG=path/to/우주항공청 로고.svg tools/build_all.sh …`로 만듭니다(`tools/kasa_lockup.py`).
 `관세국경인재개발원/`은 `CUSTOMS_SVG=path/to/연수원.svg tools/build_all.sh …`로 만듭니다(`tools/customs_lockup.py`).
-엠블럼과 영문은 원본 SVG 벡터 그대로입니다. 원본 볼드 단어 `CBCTI`에 없는 H·R·D는 원본 볼드 글자의 획으로 만들었습니다
-(H = I 굵기 기둥 + B 가운데 가로획, R = B 위 볼 + 기둥 + 사선 다리, D = 기둥·가로획 + 좌우를 뒤집은 C 의 곡선). 줄 위치는 요청 참고 이미지 실측값입니다.
+엠블럼과 영문은 원본 SVG 벡터 그대로입니다. 원본 볼드 단어 `CBCTI`에 없는 H·R·D는 원본 볼드 획 굵기로 만들고, 비율은 요청 참고 이미지(같은 계열 서체의 CBHRDI)를 따랐습니다
+(H = 기둥 두 개 + 가운데보다 조금 위 가로획, R = B 위 볼을 세로로 늘린 큰 볼 + 곧은 사선 다리, D = 기둥·가로획 + 둥근 모서리 + 곧은 오른쪽 세로획). 줄 위치는 요청 참고 이미지 실측값입니다.
 `정부상징체.ttf`, 원본 `.ai`, 가이드 PDF, 우주항공청 로고·연수원 로고 원본은 공개 저장소에 재배포하지 않기 위해 포함하지 않았습니다.

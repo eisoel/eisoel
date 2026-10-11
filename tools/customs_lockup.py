@@ -4,11 +4,12 @@
 엠블럼과 영문은 '연수원.svg' 의 벡터를 그대로 쓴다.
   * 엠블럼: 원본 왼쪽의 관세청 엠블럼
   * 영문: 원본 슬로건 'Smart Customs, Excellent CBCTI' 에서 'Smart Customs, Excellent' 는 그대로,
-    볼드 단어는 원본의 C·B·I 를 쓰고 원본에 없는 H·R·D 는 원본 볼드 글자의 획으로 만든다
-      H  기둥 두 개 (I 굵기) + B 가운데 가로획
-      R  B 위 볼 (가장 넓은 높이에서 위쪽 반을 아래로 뒤집어 닫음, 속공간은 B 위 속공간) + 기둥 + 사선 다리
-      D  기둥 + 위아래 가로획 + 좌우를 뒤집은 C 의 오른쪽 반 (가운데 열 높이를 대문자 높이에 맞춤)
-    글자 사이는 원본 볼드 단어의 간격을 따른다 (둥근→곧은 5.6, 곧은→곧은 7.5 …, 원본 좌표)
+    볼드 단어는 원본의 C·B·I 를 쓰고, 원본에 없는 H·R·D 는 원본 볼드 획 굵기로 만들되 비율은
+    요청 참고 이미지(15.png, 같은 계열 서체의 CBHRDI)에서 잰 값을 따른다
+      H  기둥 두 개 + 가로획 (가운데보다 조금 위)
+      R  B 위 볼을 세로로 늘린 큰 볼 (대문자 높이의 62%) + 기둥 + 볼 아래에서 곧게 뻗는 다리
+      D  기둥 + 위아래 가로획 + 둥근 모서리 + 곧은 오른쪽 세로획
+    글자 사이는 원본 C→B 간격을 기준으로 참고 이미지의 간격 비율을 따른다
   * 색: 영문 #2B609F (원본), 국문 정부상징체 정부회색 #575757
 구도 (요청 참고 이미지 실측, REF_*): 영문 잉크 폭 = 국문 잉크 폭, 줄 높이·엠블럼과의 간격은 참고 이미지대로,
 바탕 여백 좌우 8r · 상하 5r (엠블럼 높이 = 20r).
@@ -48,8 +49,9 @@ SRC_REGULAR_END = 1080        # 'Smart Customs, Excellent' 의 오른쪽 끝 이
 SRC_BOLD = {"C": (1094.2, 1134.7), "B": (1140.2, 1177.5), "I": (1271.6, 1280.6)}   # 'CBCTI' 의 글자 x 범위
 CAP_TOP, BASE = 50.6, 101.8   # 볼드 대문자 위·기준선
 STEM = 8.8                    # 볼드 기둥 굵기 (B 8.8, I 9.0)
-# 볼드 단어 배치: (글자, 앞 글자 잉크와의 간격). 원본 CBCTI: C→B 5.6, B→C 5.0, C→T 3.5, T→I 6.0
-BOLD_WORD = (("C", 0), ("B", 5.6), ("H", 6.0), ("R", 7.5), ("D", 5.0), ("I", 5.6))
+# 볼드 단어 배치: (글자, 앞 글자 잉크와의 간격). C→B 는 원본 CBCTI 의 5.6, 나머지는 참고 이미지 간격 비율
+# (C→B 13 px : B→H 15 : H→R 15 : R→D 11 : D→I 14) 을 원본 C→B 에 맞춘 값
+BOLD_WORD = (("C", 0), ("B", 5.6), ("H", 6.5), ("R", 6.5), ("D", 4.7), ("I", 6.0))
 
 
 def _transform(s):
@@ -154,10 +156,28 @@ def to_path(subs):
     return p
 
 
-def english_word(subs):
-    """영문 한 줄: 원본 'Smart Customs, Excellent' + 볼드 'CBHRDI' (원본 좌표, y 아래쪽 증가)."""
+def stroke_path(points, width, hbar):
+    """중심선(직선·3차 곡선)을 굵기 width 로 그린 윤곽. 가로획은 hbar 굵기가 되게 세로로 눌러 그린 뒤 되돌린다."""
+    k = width / hbar
+    p = pathops.Path()
+    p.moveTo(points[0][0], points[0][1] * k)
+    for seg in points[1:]:
+        if len(seg) == 2:
+            p.lineTo(seg[0], seg[1] * k)
+        else:
+            p.cubicTo(*(v * (k if i % 2 else 1) for i, v in enumerate(seg)))
+    p.stroke(width, pathops.LineCap.BUTT_CAP, pathops.LineJoin.MITER_JOIN, 4)
+    p.simplify(fix_winding=True)
+    return xf(p, (1, 0, 0, 1 / k, 0, 0))
+
+
+def bold_glyphs(subs):
+    """볼드 단어 글자: 원본 C·B·I + 원본 볼드 획으로 만든 H·R·D (원본 좌표, y 아래쪽 증가, 왼쪽 끝 x=0).
+
+    H·R·D 의 비율(폭, 가로획 높이, R 볼 크기·다리, D 곡선)은 요청 참고 이미지(같은 계열 서체의 CBHRDI)를
+    대문자 높이로 맞춰 잰 값이고, 획 굵기는 원본 볼드 (기둥 8.8, 가로획 7.5).
+    """
     blue = [(bx, s) for f, bx, s in subs if f == ENG_FILL]
-    regular = to_path([s for bx, s in blue if bx[2] < SRC_REGULAR_END])
 
     def src(x0, x1, start=None):
         """x0~x1 안의 볼드 글자 (start 가 있으면 왼쪽 위가 그 점인 윤곽 하나만), 왼쪽 끝을 x=0 으로."""
@@ -166,33 +186,48 @@ def english_word(subs):
         return xf(to_path(sel), (1, 0, 0, 1, -x0, 0))
 
     G = {k: src(*v) for k, v in SRC_BOLD.items()}
-    # H: 기둥 두 개 + B 가운데 가로획 (71.8~78.8)
-    hw = 40.0
-    G["H"] = op(op(rect(0, CAP_TOP, STEM, BASE), rect(hw - 9.0, CAP_TOP, hw, BASE), UNION),
-                rect(0, 71.8, hw, 78.8), UNION)
-    # R: B 위 볼의 바깥 윤곽을 가장 넓은 높이(63.2)에서 위쪽 반만 남기고 아래로 뒤집어 붙이고(사이는 같은 폭),
-    #    B 위 속공간을 뺀 뒤 기둥과 사선 다리를 더한다. 볼 아래 끝 79.0 = 속공간 아래 71.7 + 가로획 7.3
-    widest, bowl_bottom = 63.2, 79.0
-    outer = src(*SRC_BOLD["B"], start=(1140.2, 50.6))
+    stem = rect(0, CAP_TOP, STEM, BASE)
+    # H: 폭 38.8, 가로획 70.6~78.3 (가운데보다 조금 위)
+    hw = 38.8
+    G["H"] = op(op(stem, rect(hw - STEM, CAP_TOP, hw, BASE), UNION), rect(0, 70.6, hw, 78.3), UNION)
+
+    # R: 볼 = B 위 볼을 가장 넓은 높이에서 위아래로 나눠 그 사이를 곧게 늘린 것 (바깥·속공간 모두).
+    #    볼 아래 끝 82.4 (대문자 높이의 62%), 속공간 아래 74.8, 다리는 볼 아래에서 곧게 오른쪽 아래로
+    def stretch(shape, y_split, new_bottom):
+        """shape 를 y_split 에서 나눠 위쪽 반은 그대로, 아래쪽은 위쪽 반을 뒤집어 new_bottom 에 붙이고 사이를 채움."""
+        top = op(shape, rect(-1, 0, 60, y_split), INTER)
+        y0 = top.bounds[1]
+        bottom = xf(top, (1, 0, 0, -1, 0, y0 + new_bottom))
+        row = op(top, rect(-1, y_split - 0.05, 60, y_split), INTER).bounds
+        band = rect(row[0], y_split - 0.01, row[2], new_bottom - (y_split - y0) + 0.01)
+        return op(op(top, bottom, UNION), band, UNION)
+
+    outer = stretch(src(*SRC_BOLD["B"], start=(1140.2, 50.6)), 63.2, 82.4)
     counter = xf(src(1149.0, 1166.7, start=(1149.0, 58.2)), (1, 0, 0, 1, 1149.0 - 1140.2, 0))
-    top = op(outer, rect(-1, 0, 50, widest), INTER)
-    bottom = xf(top, (1, 0, 0, -1, 0, CAP_TOP + bowl_bottom))
-    band = rect(0, widest - 0.01, op(top, rect(-1, widest - 0.05, 50, widest), INTER).bounds[2],
-                bowl_bottom - (widest - CAP_TOP) + 0.01)
-    r = op(op(op(top, bottom, UNION), band, UNION), counter, DIFF)
-    leg = poly((15.4, 76), (26.9, 76), (38.6, BASE), (27.1, BASE))
-    G["R"] = op(op(r, rect(0, CAP_TOP, STEM, BASE), UNION), leg, UNION)
-    # D: 좌우를 뒤집은 C 의 오른쪽 반 (가운데 열 50.1~102.4 를 대문자 높이에 맞춤) + 기둥 + 위아래 가로획
-    dw, cw, ct, cb = 42.0, SRC_BOLD["C"][1] - SRC_BOLD["C"][0], 50.1, 102.4
-    sy = (BASE - CAP_TOP) / (cb - ct)
-    m = xf(G["C"], (-1, 0, 0, sy, cw, CAP_TOP - ct * sy))
-    half = xf(op(m, rect(cw / 2 - 0.3, 0, cw + 1, 200), INTER), (1, 0, 0, 1, dw - cw, 0))
-    xc = dw - cw / 2
-    tb = op(half, rect(xc, 0, xc + 0.05, (CAP_TOP + BASE) / 2), INTER).bounds
-    bb = op(half, rect(xc, (CAP_TOP + BASE) / 2, xc + 0.05, 200), INTER).bounds
-    d = op(half, rect(0, CAP_TOP, STEM, BASE), UNION)
-    d = op(op(d, rect(0, CAP_TOP, xc, tb[3]), UNION), rect(0, bb[1], xc, BASE), UNION)
-    G["D"] = d
+    cmid = (counter.bounds[1] + counter.bounds[3]) / 2
+    counter = stretch(counter, cmid, 74.8)
+    leg = poly((14.1, 76.0), (22.7, 76.0), (38.8, BASE), (29.1, BASE))
+    G["R"] = op(op(op(outer, counter, DIFF), stem, UNION), leg, UNION)
+
+    # D: 폭 38.9, 기둥 + 위아래 가로획이 둥근 모서리로 오른쪽 세로획(69.4~81.2 곧음)에 이어짐
+    h2, v2 = 7.5 / 2, STEM / 2
+    yt, yb, xr = CAP_TOP + h2, BASE - h2, 38.9 - v2
+    kt, kb = 0.6, 0.6                                   # 모서리 곡률 (원 0.55 보다 조금 각진 쪽)
+    x1, ya, yb2, x2 = 21.0, 69.4, 81.2, 20.0
+    center = [(v2, yt), (x1, yt),
+              (x1 + (xr - x1) * kt, yt, xr, ya - (ya - yt) * kt, xr, ya),
+              (xr, yb2),
+              (xr, yb2 + (yb - yb2) * kb, x2 + (xr - x2) * kb, yb, x2, yb),
+              (v2, yb)]
+    G["D"] = op(stroke_path(center, STEM, 7.5), stem, UNION)
+    return G
+
+
+def english_word(subs):
+    """영문 한 줄: 원본 'Smart Customs, Excellent' + 볼드 'CBHRDI' (원본 좌표, y 아래쪽 증가)."""
+    blue = [(bx, s) for f, bx, s in subs if f == ENG_FILL]
+    regular = to_path([s for bx, s in blue if bx[2] < SRC_REGULAR_END])
+    G = bold_glyphs(subs)
 
     out, x = regular, SRC_BOLD["C"][0] - BOLD_WORD[0][1]
     for ch, gap in BOLD_WORD:
