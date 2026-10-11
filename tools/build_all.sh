@@ -79,7 +79,7 @@ O=$OUT/기관별
 "${B[@]}" --out "$O" --type A --parent 질병관리청 --filename "{name} 로고" \
     경남권질병대응센터 경북권질병대응센터 호남권질병대응센터 충청권질병대응센터 수도권질병대응센터 \
     국립목포병원 국립마산병원
-"${B[@]}" --out "$O" --type 1행 --filename "{name} 로고" "대체역 심사위원회"
+"${B[@]}" --out "$O" --type 1행 --filename "{name} 로고" "대체역 심사위원회" 국립신암선열공원
 # 가이드에 없는 요청: 국문 양끝을 영문 폭에 맞춤
 "${B[@]}" --out "$O" --type 국영B --justify --filename "{name} 로고" "무역위원회=KOREA TRADE COMMISSION"
 
