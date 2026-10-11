@@ -362,9 +362,22 @@ def geometry(glyphs, kind="1행"):
     return geo
 
 
-def fmt(v):
-    s = f"{v:.4f}".rstrip("0").rstrip(".")
+def fmt(v, digits=4):
+    s = f"{v:.{digits}f}".rstrip("0").rstrip(".")
     return "0" if s in ("-0", "") else s
+
+
+# SVG 출력 규칙 — 소수점 3자리, 프레젠테이션 속성(fill 등, style 속성 없음), 글자는 path, <desc> 없음.
+# 이 규칙 이전에 만든 파일은 --legacy-svg 로 같은 바이트를 다시 만든다 (소수점 4자리 + <desc>).
+SVG = {"digits": 3, "desc": False}
+
+
+def use_legacy_svg():
+    SVG.update(digits=4, desc=True)
+
+
+def sfmt(v):
+    return fmt(v, SVG["digits"])
 
 
 def svg_path(segs, tf):
@@ -374,7 +387,7 @@ def svg_path(segs, tf):
             out.append("Z")
             continue
         cmd = {"m": "M", "l": "L", "c": "C"}[op]
-        out.append(cmd + " ".join(f"{fmt(x)} {fmt(y)}" for x, y in map(tf, pts)))
+        out.append(cmd + " ".join(f"{sfmt(x)} {sfmt(y)}" for x, y in map(tf, pts)))
     return "".join(out)
 
 
@@ -397,11 +410,14 @@ def write_svg(path, title, geo, glyphs, guides=False):
 
     lines = [
         '<?xml version="1.0" encoding="UTF-8"?>',
-        f'<svg xmlns="http://www.w3.org/2000/svg" width="{fmt(W)}pt" height="{fmt(H)}pt" '
-        f'viewBox="0 0 {fmt(W)} {fmt(H)}">',
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{sfmt(W)}pt" height="{sfmt(H)}pt" '
+        f'viewBox="0 0 {sfmt(W)} {sfmt(H)}">',
         f"<title>{escape(title)}</title>",
-        f"<desc>대한민국 정부상징 — {TYPE_LABEL[geo['kind']]}.{geo.get('note', '')} "
-        "캔버스는 보호공간(좌우 8r, 상하 5r)을 포함.</desc>",
+    ]
+    if SVG["desc"]:
+        lines.append(f"<desc>대한민국 정부상징 — {TYPE_LABEL[geo['kind']]}.{geo.get('note', '')} "
+                     "캔버스는 보호공간(좌우 8r, 상하 5r)을 포함.</desc>")
+    lines += [
         '<g id="emblem">',
     ]
     for color, segs in geo["shapes"]:
@@ -642,6 +658,8 @@ def main():
     ap.add_argument("--filename", help="파일명 형식 (기본: 1행 '{name}_국문_좌우_1행', 2행 '{name}_국문_좌우_2행', "
                                        "국영문 '{name}_국영혼합_좌우_1행|2행')")
     ap.add_argument("--px-per-pt", type=float, default=8.0, help="PNG 해상도 (pt 당 픽셀)")
+    ap.add_argument("--legacy-svg", action="store_true",
+                    help="이전 SVG 형식(소수점 4자리 + <desc>) — 기존 파일을 그대로 다시 만들 때")
     ap.add_argument("--divider", action="store_true",
                     help="2행(A·B·2행): 두 줄 사이에 정부회색 가로 구분선 (가이드에 없는 요청용)")
     ap.add_argument("--justify", action="store_true",
@@ -650,6 +668,8 @@ def main():
                     help="기관명 (기본: 지방국세청 7곳). 국영문은 '국문=English' (영문 2행은 '|' 로 구분). "
                          "파일명의 {name} 을 따로 줄 때는 끝에 '::이름' (예: '국립4·19민주묘지=...::국립4.19민주묘지')")
     args = ap.parse_args()
+    if args.legacy_svg:
+        use_legacy_svg()
     if args.divider and args.type not in ("A", "B", "2행"):
         ap.error("--divider 는 2행 형식(A, B, 2행)에서만 쓸 수 있습니다.")
     if args.justify and args.type not in KE_TYPES:

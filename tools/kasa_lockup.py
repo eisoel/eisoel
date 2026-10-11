@@ -13,6 +13,7 @@ KASA 마크는 '우주항공청 로고.svg' 의 벡터를 그대로 쓴다 (KASA
 
 import argparse
 import os
+import re
 from xml.etree import ElementTree as ET
 
 import cairosvg
@@ -33,10 +34,30 @@ REF_MARK = (2, 11, 94, 36)
 REF_LINES = ((99, 8, 151, 20), (98, 22, 207, 41))
 
 
-def kasa_mark(path):
+def presentation_defs(el):
+    """<defs> 를 프레젠테이션 속성으로: stop 의 style → stop-color/stop-opacity, 숫자는 소수점 3자리."""
+    def num(s):
+        return re.sub(r"-?\d+\.\d+", lambda m: b.sfmt(float(m.group(0))), s)
+    out = []
+    for g in el:
+        tag = g.tag.split("}")[1]
+        attrs = " ".join(f'{k}="{num(v)}"' for k, v in g.attrib.items())
+        stops = []
+        for s in g:
+            st = dict(kv.split(":") for kv in s.get("style", "").split(";") if kv)
+            stops.append(f'<stop offset="{num(s.get("offset"))}" stop-color="{st.get("stop-color", "#000")}" '
+                         f'stop-opacity="{st.get("stop-opacity", "1")}"/>')
+        out.append(f"<{tag} {attrs}>{''.join(stops)}</{tag}>")
+    return "<defs>" + "".join(out) + "</defs>"
+
+
+def kasa_mark(path, legacy=False):
     """원본 SVG 에서 KASA 마크 부분만: (translate, defs xml, [(fill, d)], 마크 상자)."""
     root = ET.parse(path).getroot()
-    defs = ET.tostring(root.find(NS + "defs"), encoding="unicode").replace("ns0:", "").replace(":ns0", "")
+    if legacy:
+        defs = ET.tostring(root.find(NS + "defs"), encoding="unicode").replace("ns0:", "").replace(":ns0", "")
+    else:
+        defs = presentation_defs(root.find(NS + "defs"))
     parts, box = [], None
     for el in root.iter(NS + "path"):
         rec = RecordingPen()
@@ -54,7 +75,7 @@ def kasa_mark(path):
             if bp.bounds[3] <= MARK_LETTER_BOTTOM + 0.5:      # 마크 (글자 줄 아래는 제외)
                 keep.append(s)
                 box = bp.bounds if box is None else b.union([box, bp.bounds])
-        pen = SVGPathPen(None)
+        pen = SVGPathPen(None) if legacy else SVGPathPen(None, ntos=b.sfmt)
         for s in keep:
             replayRecording(s, pen)
         fill = el.get("fill") or "url(#a)"
@@ -63,8 +84,8 @@ def kasa_mark(path):
     return tr, defs, parts, box
 
 
-def build(font, kasa, parent, name, out, base, png_height):
-    tr, defs, parts, box = kasa_mark(kasa)
+def build(font, kasa, parent, name, out, base, png_height, legacy=False):
+    tr, defs, parts, box = kasa_mark(kasa, legacy)
     tx, ty = (float(v) for v in tr[tr.index("(") + 1:-1].split())     # translate(tx ty)
     x0, y0, x1 = box[0] + tx, box[1] + ty, box[2] + tx
     h = MARK_LETTER_BOTTOM + ty - y0
@@ -91,22 +112,25 @@ def build(font, kasa, parent, name, out, base, png_height):
         return (p[0] - left, top - p[1])
 
     mx, my = -left - x0, top - h - y0                       # 원본 마크 좌표 → 캔버스
+    f = b.sfmt
     out_svg = ['<?xml version="1.0" encoding="UTF-8"?>',
-               f'<svg xmlns="http://www.w3.org/2000/svg" width="{b.fmt(W)}" height="{b.fmt(H)}" '
-               f'viewBox="0 0 {b.fmt(W)} {b.fmt(H)}">',
-               f"<title>{parent} {name}</title>",
-               "<desc>우주항공청 KASA 마크 + 정부상징체 기관명 (정부상징 밖 요청 로고). 바탕 여백 좌우 8r, 상하 5r 포함.</desc>",
-               defs,
-               f'<g id="kasa" transform="translate({b.fmt(mx)} {b.fmt(my)}) {tr}">']
-    out_svg += [f'<path fill="{f}" d="{d}"/>' for f, d in parts if d]
+               f'<svg xmlns="http://www.w3.org/2000/svg" width="{f(W)}" height="{f(H)}" '
+               f'viewBox="0 0 {f(W)} {f(H)}">',
+               f"<title>{parent} {name}</title>"]
+    if legacy:
+        out_svg.append("<desc>우주항공청 KASA 마크 + 정부상징체 기관명 (정부상징 밖 요청 로고). "
+                       "바탕 여백 좌우 8r, 상하 5r 포함.</desc>")
+    out_svg += [defs, f'<g id="kasa" transform="translate({f(mx)} {f(my)}) {tr}">' if legacy else
+                f'<g id="kasa" transform="translate({f(mx + tx)} {f(my + ty)})">']
+    out_svg += [f'<path fill="{fill}" d="{d}"/>' for fill, d in parts if d]
     out_svg += ["</g>", '<g id="name" fill="#000000">']
     out_svg += [f'<path d="{b.svg_path(g, tf)}"/>' for g in glyphs]
     out_svg += ["</g>", "</svg>"]
     for d in ("svg", "pdf", "png"):
         os.makedirs(os.path.join(out, d), exist_ok=True)
     svg = os.path.join(out, "svg", base + ".svg")
-    with open(svg, "w", encoding="utf-8") as f:
-        f.write("\n".join(out_svg) + "\n")
+    with open(svg, "w", encoding="utf-8") as fh:
+        fh.write("\n".join(out_svg) + "\n")
     doc = pymupdf.open("pdf", cairosvg.svg2pdf(url=svg))
     # 메타데이터 고정 (생성 시각을 빼서 다시 만들어도 같은 파일)
     doc.set_metadata({"title": f"{parent} {name}", "subject": "우주항공청 KASA 마크 + 정부상징체 기관명",
@@ -123,12 +147,16 @@ def main():
     ap.add_argument("--out", default="logos/우주항공청")
     ap.add_argument("--filename", default="{name} 로고")
     ap.add_argument("--png-height", type=int, default=710, help="PNG 높이 (px, 다른 로고와 같은 710)")
+    ap.add_argument("--legacy-svg", action="store_true", help="이전 SVG 형식(소수점 4자리 + <desc>, style 속성)")
     ap.add_argument("names", nargs="+", help="'본부명|기관명'")
     args = ap.parse_args()
+    if args.legacy_svg:
+        b.use_legacy_svg()
     font = b.Font(args.font)
     for n in args.names:
         parent, name = n.split("|")
-        build(font, args.kasa, parent, name, args.out, args.filename.format(name=name), args.png_height)
+        build(font, args.kasa, parent, name, args.out, args.filename.format(name=name), args.png_height,
+              args.legacy_svg)
 
 
 if __name__ == "__main__":
